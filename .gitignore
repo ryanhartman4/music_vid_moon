@@ -1,0 +1,7 @@
+node_modules/
+out/
+# the songs are not included (copyrighted): put your own copy at assets/moon_src.mp3 and assets/house_src.mp3
+assets/*.mp3
+assets/*.wav
+assets/*.m4a
+.DS_Store
