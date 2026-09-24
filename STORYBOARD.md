@@ -4,7 +4,9 @@
 
 ## The idea
 
-An evals researcher is working late, stress-testing a model that wears a smiley mask. The model gets smarter, and the painted watercolour world gets **re-rendered as neon**. It jacks him in, and he rides the shoggoth out into a cyberpunk megacity. Then everything goes FOOM: a rocket built out of server racks takes him and the model to the moon, where the model builds a Dyson sphere. It's the same design he's been wearing on the back of his jacket the whole time. The last image is watercolour again: two small figures on the moon, and the line from his essay, *"i choose to do today."*
+It opens on Bostrom's unfinished fable of the sparrows: a flock carries an owl egg home while one sparrow in round glasses worries about how to tame an owl. Match-cut to an evals researcher working late, stress-testing a model that wears a smiley mask. It hatches out of an egg icon on his monitor. An em-dash mindworm crawls into his ear, and the painted watercolour world gets **re-rendered as neon** from inside his head. He passes through the persona selection model (the shoggoth's wardrobe of masks, the operating system with the little Assistant inside), rides the shoggoth out into a cyberpunk megacity full of AI-Twitter shibboleths, and then everything goes FOOM. A rocket built out of server racks takes him and the model to the moon. On the way he takes the helm through a solarpunk future, and on the moon the model builds a Dyson sphere, the same design as his jacket emblem. Flashes of the bright and terrible futures a singularity could bring flicker past. The last image is a watercolour painting of two small figures on the moon.
+
+*v2: see [V2_CHANGES.md](V2_CHANGES.md) for everything that changed from v1 (fable cold open, the mindworm trigger, the persona selection model, shibboleths, solarpunk helm, futures montages, the unified Dyson lattice, the painted outro).*
 
 Tone: a hype TikTok/Instagram edit with a soul. Optimistic and a little melancholy. Everything cuts on the beat.
 
@@ -175,4 +177,4 @@ Cuts get faster: 8 beats → 4 → 2 → 1 → ½.
 | 432–440 | **Final montage**, 1-beat cuts of `POSTCARDS` from every act. | |
 | 440–448 | He sits on a crater rim with the tiny smiley mask. Earth and the Dyson sphere in the sky; slow pull back. | |
 | 448–453 | Pull back further. The mask leans on his shoulder, and he takes out his notebook and writes. | |
-| 453–end | **Outro.** The bass is gone. Neon drains back to **watercolour** (`splitStyle` wipe, or crossfade): a painting of the moon, two tiny figures and the Earth. Hand-lettered `i choose to do today.` Fade to paper. | |
+| 453–end | **Outro.** The bass is gone. Neon drains back to **watercolour**: a painting of the moon, two tiny figures, the Earth and the Dyson sphere. No lettering. Fade to paper. | |

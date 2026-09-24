@@ -1,5 +1,7 @@
 // src/ch/c04_foom.js: Act IV · FOOM (b200–b264, 68.59–90.53 s). The main drop: a cut on every beat (half-beats in the
 // callback montage), heavy FX, big captions, full neon. Exports POSTCARDS.foom and POSTCARDS.rocket.
+// v2: his shoggoth/mask in FOOM, the tower wrap and the dance; STRAIGHT LINES ON A LOG PLOT; shibboleth slams on the montage;
+// an e/acc flag on the pad and an e/acc billboard in the climb; the Kardashev-II frame uses Act VI's SHARED.lattice.
 (() => {
   const B = n => bt(n);
   const NY = PAL.nYellow, NC = PAL.nCyan, NM = PAL.nMagenta, NO = PAL.nOrange, NV = PAL.nViolet, NG = PAL.nGreen, NR = PAL.nRed, NP = PAL.nPink;
@@ -148,10 +150,34 @@
   const kHit = t => { const b = bpOf(t), n = b >= 222 ? 222 : b >= 220 ? 220 : b >= 218 ? 218 : 216; return Math.exp(-(b - n) * 4); };
   const gaugeAt = t => kGauge(1520, 790, 225, kVal(t), kHit(t));
 
+  // v2 helpers. Signs come from c03 (SHARED.neonPanel); the fallback is the plain world.js signBoard.
+  const panel = (x, y, w, h, lines, o = {}) => SHARED.neonPanel ? SHARED.neonPanel(x, y, w, h, lines, o) : signBoard(x, y, w, h, lines.map(l => l.s || l).join(' '), o.col || NY, { size: h * .4 });
+  const maskR = a => SHARED.maskPolar ? SHARED.maskPolar(a) : 1.05;
+  // a waving e/acc flag on a pole: (px, py) = pole foot, h = pole height, w = cloth width; wind 0..1 (1 = flapping hard)
+  function flag(px, py, h, w, t, wind = .4) {
+    const top = py - h, fh = w * .58, n = 14, amp = fh * (.08 + .09 * wind), sp = 6 + 12 * wind;
+    const wave = u => Math.sin(u * (4 + 3 * wind) - t * sp) * amp * (.15 + u) + u * u * fh * .18 * (1 - wind);
+    const edge = (y0) => Array.from({ length: n + 1 }, (_, i) => { const u = i / n; return [px + u * w * (1 - .06 * wind * Math.sin(t * sp * .5)), top + 8 + y0 + wave(u)]; });
+    const T0 = edge(0), B0 = edge(fh), cloth = [...T0, ...B0.reverse()];
+    paint(rectPts(px - 5, top - 10, 10, py - top + 10), { fill: '#8A7AC8', shade: '#3A2E6A', rim: '#D8D0FF', ink: PAL.line, sw: 1.5 }); paint(ellPts(px, top - 14, 9, 9, 10), { fill: NY, ink: PAL.line, sw: 1.5 }); glow(px, top - 14, 30, NY, .5);
+    paint(cloth, { fill: '#1A0A20', shade: '#0B0410', light: [0, -.2], ink: PAL.line, sw: 2.5, curv: .3 });
+    neonLine(cloth, NO, 2.5, .9, .3, true);
+    // letters ride the wave
+    const word = '⏩ e/acc'.split(''), size = fh * .5, ws = word.map(ch => ch === '⏩' ? size * .9 : txtW(ch, size, 'Anton')), tot = ws.reduce((a, b) => a + b, 0) + size * .2;
+    let x = px + (w - tot) / 2;
+    word.forEach((ch, i) => {
+      const u = (x + ws[i] / 2 - px) / w, yy = top + 8 + fh / 2 + wave(u), ang = Math.atan2(wave(u + .03) - wave(u - .03), w * .06);
+      if (ch === '⏩') { for (const d of [0, size * .42]) paint(xform([[0, -size * .28], [size * .4, 0], [0, size * .28]], x + d, yy, 1, ang), { fill: NY, ink: null }); x += ws[i] + size * .2; return; }
+      if (ch !== ' ') txt(ch, x + ws[i] / 2, yy, size, '#FFF6C8', { font: 'Anton', stroke: NO, sw: size * .1, rot: ang });
+      x += ws[i];
+    });
+  }
+
   // =====================================================================================================
   // b200–208: FOOM, one image per beat
   // =====================================================================================================
-  // b200 · the shoggoth bursts through the moon-mask
+  // b200 · the shoggoth bursts through the moon-mask (v2: the mask is his lopsided pale-yellow one, and the thing behind
+  // it is his sage shoggoth, mask lifted, hidden eye open)
   function foom(t, lt, dur) {
     style(1);
     const k = clamp(lt / BEAT), kb = clamp((lt - .07) / (BEAT - .07)), e = expoOut(kb), e2 = easeOut(kb), cx = 960, cy = 440;
@@ -161,64 +187,86 @@
     stars(t, 40, { seed: 5 });
     skyline(1080, { h: 440, seed: 4, lit: .35, col: '#0E0620' });
     // the moon-mask shatters into wedges flying outward
-    const mr = 330, N = 9;
+    const mr = 300, N = 9;
     for (let i = 0; i < N; i++) {
       const a0 = (i + hash(i) * .4) / N * TAU, a1 = (i + 1 + hash(i + 1) * .4) / N * TAU, am = (a0 + a1) / 2;
       const d = e2 * (190 + hash(i * 3) * 300) + (lt < .07 ? Math.sin(lt * 200 + i) * 4 : 0), rot = (hash(i * 5) - .5) * 1.2 * e2;
       X.save(); X.translate(cx + Math.cos(am) * d, cy + Math.sin(am) * d); X.rotate(rot); X.translate(-cx, -cy);
-      const wedge = [[cx + Math.cos(am) * mr * .12, cy + Math.sin(am) * mr * .12]]; for (let j = 0; j <= 6; j++) { const a = lerp(a0, a1, j / 6); wedge.push([cx + Math.cos(a) * mr, cy + Math.sin(a) * mr]); }
+      const wedge = [[cx, cy]]; for (let j = 0; j <= 6; j++) { const a = lerp(a0, a1, j / 6); wedge.push([cx + Math.cos(a) * mr * 1.4, cy + Math.sin(a) * mr * 1.4]); }
       X.save(); tracePath(X, wedge); X.clip();
-      paint(ellPts(cx, cy, mr, mr, 40), { fill: '#FFF4D8', shade: '#E9C98E', light: [-.12, -.1], ink: null });
-      mask(cx, cy, mr * .98, { eyes: 'wide', mouth: 'open', glow: 0, col: '#FFF4D8', eyeGlow: true });
+      mask(cx, cy, mr, { eyes: 'wide', mouth: 'open', glow: 0, col: MOD.maskCol, eyeGlow: true, crack: 1 });
       X.restore();
-      paint(wedge, { ink: PAL.line, sw: 2.5 });
-      if (kb <= 0) neonLine(wedge.slice(0, 2), NM, 3, .9, 0);
+      const c0 = [cx + Math.cos(am) * mr * .1, cy + Math.sin(am) * mr * .1];
+      for (const aa of [a0, a1]) line([c0, [cx + Math.cos(aa) * mr * maskR(aa), cy + Math.sin(aa) * mr * maskR(aa)]], 3, PAL.line, 0);
+      if (kb <= 0) neonLine([c0, [cx + Math.cos(a0) * mr * maskR(a0), cy + Math.sin(a0) * mr * maskR(a0)]], NM, 3, .9, 0);
       X.restore();
     }
     // the thing behind the mask
-    const s = lerp(40, 240, e);
+    const s = lerp(50, 250, e);
     glow(cx, cy, 120 + s * 3, '#FFFFFF', .55 * (1 - k * .6));
-    if (kb > 0) shoggoth(cx, cy, s, { tent: 12, reach: lerp(.15, 1, e), eyesN: 13, mood: { eyes: 'star', mouth: 'grin' }, t: onTwos(t) * 2.5, seed: 3 });
+    if (kb > 0) shoggoth(cx, cy + s * .2, s, { reach: lerp(.1, 1, e), wiggle: 5, reveal: .85, glowEyes: true, mood: { eyes: 'star', mouth: 'grin' }, look: [0, .3], t: onTwos(t) * 2.5, seed: 3 });
     // debris flying at camera
     for (let i = 0; i < 16; i++) {
       const a = hash(i * 9.1) * TAU, d = e * (300 + hash(i * 2.3) * 950), r = (12 + hash(i * 4.4) * 26) * (1 + e * 1.5);
-      paint(polyPts(cx + Math.cos(a) * d, cy + Math.sin(a) * d, r, 3 + (i % 3), hash(i) * 6 + lt * 9), { fill: '#FFF4D8', shade: '#E9C98E', ink: PAL.line, sw: 2 });
+      paint(polyPts(cx + Math.cos(a) * d, cy + Math.sin(a) * d, r, 3 + (i % 3), hash(i) * 6 + lt * 9), { fill: MOD.maskCol, shade: MOD.maskDk, ink: PAL.line, sw: 2 });
     }
     speedLines(cx, cy, 1, { n: 46, r0: 560, alpha: .45 });
     FX.zoom *= 1 + .07 * e; FX.shake += 8;
     capPop('FOOM', 960, 870, 330, NY, lt + .05, { glow: NM, rot: -.05, track: 14 });
   }
 
-  // b201 · line go up: the chart goes vertical and punches out of the frame
+  // b201 · v2: STRAIGHT LINES ON A LOG PLOT. Log gridlines, a dead-straight trend through the dots, a ruler slapped on it,
+  // and the dashed extrapolation punching out through the HUD frame.
   function chartUp(t, lt, dur) {
     style(1);
-    const k = clamp(lt / dur), P = lerp(.3, 1, easeOut(k / .8));
+    const k = clamp(lt / dur), P = lerp(.3, 1, easeOut(k / .75)), x0 = 300, x1 = 1640, yb = 930, dec = 150;
     bg('#060B14'); sky([[0, '#050A12'], [1, '#0E1A30']], 200);
-    const pts = [], nC = 40, nV = 10, x0 = 250, x1 = 1380;
-    for (let i = 0; i <= nC; i++) { const u = i / nC; pts.push([x0 + u * (x1 - x0), 930 - 700 * (Math.exp(4.2 * u) - 1) / (Math.exp(4.2) - 1)]); }
-    for (let i = 1; i <= nV; i++) pts.push([x1 + i * 1.5, 230 - i / nV * 560]);
-    const nn = Math.max(2, Math.ceil(P * pts.length)), head = pts[nn - 1], out = nn > nC + 3;
-    camBegin(960, 540 - 70 * easeIn(k), 1 + .06 * k, -.025);
-    X.strokeStyle = 'rgba(39,242,242,.13)'; X.lineWidth = 2; X.beginPath();
-    for (let x = -240; x <= W + 240; x += 120) { X.moveTo(x, -400); X.lineTo(x, H + 200); } for (let y = -360; y <= H + 200; y += 120) { X.moveTo(-240, y); X.lineTo(W + 240, y); } X.stroke();
+    camBegin(960, 540 - 50 * easeIn(k), 1 + .06 * k, -.025);
     hud(150, 90, 1620, 920, { col: NC, corner: 60, w: 4 });
-    neonLine([[x0, 150], [x0, 930], [1700, 930]], '#8A7AFF', 4, .9, 0);
-    for (let i = 0; i < 5; i++) { const y = 930 - i * 170; line([[x0 - 16, y], [x0 + 16, y]], 2, '#8A7AFF', 0); }
-    const m = Math.min(nn, nC + 1);
-    X.save(); X.globalAlpha = .2; X.fillStyle = NG; X.beginPath(); X.moveTo(x0, 930); for (let i = 0; i < m; i++) X.lineTo(pts[i][0], pts[i][1]); X.lineTo(pts[m - 1][0], 930); X.closePath(); X.fill(); X.restore();
-    neonLine(pts.slice(0, nn), NG, 9, 1, .25);
-    for (let i = 1; i <= 6; i++) { const idx = Math.round(i / 6.3 * nC); if (idx >= nn) break; paint(ellPts(pts[idx][0], pts[idx][1], 15, 15, 12), { fill: NY, ink: PAL.line, sw: 1.5 }); }
-    glow(head[0], head[1], 190, NG, .7); glow(head[0], head[1], 80, '#FFFFFF', .9);
-    paint(starPts(head[0], head[1], 50 + 16 * Math.sin(lt * 50), .28, 4, lt * 4), { fill: '#FFFFFF', ink: null });
-    // breaking out of the frame: the HUD border shatters where the line exits
-    if (out) {
-      const bk = clamp((nn - nC - 3) / 5);
-      for (let i = 0; i < 12; i++) { const a = -Math.PI / 2 + (hash(i * 3) - .5) * 2.6, d = bk * (60 + hash(i * 7) * 260); paint(polyPts(x1 + Math.cos(a) * d, 90 + Math.sin(a) * d * .6, 10 + hash(i) * 14, 3, i + lt * 9), { fill: i % 2 ? NC : '#FFFFFF', ink: null }); }
-      glow(x1, 90, 300 * bk, NG, .5);
+    // log grid: decades (bright) with the 2..9 minor lines bunching up under each one
+    X.lineWidth = 2; X.strokeStyle = 'rgba(39,242,242,.28)'; X.beginPath();
+    for (let d = 0; d < 5; d++) { const y = yb - d * dec; X.moveTo(x0, y); X.lineTo(x1, y); }
+    X.stroke(); X.strokeStyle = 'rgba(39,242,242,.1)'; X.beginPath();
+    for (let d = 0; d < 5; d++) for (let m = 2; m <= 9; m++) { const y = yb - (d + Math.log10(m)) * dec; if (y < yb - 4.9 * dec) break; X.moveTo(x0, y); X.lineTo(x1, y); }
+    for (let i = 0; i <= 10; i++) { const x = lerp(x0, x1, i / 10); X.moveTo(x, yb); X.lineTo(x, yb - 4.9 * dec); }
+    X.stroke();
+    neonLine([[x0, 170], [x0, yb], [x1 + 60, yb]], '#8A7AFF', 4, .9, 0);
+    ['1e20', '1e22', '1e24', '1e26', '1e28'].forEach((l, d) => { if (d) txt(l, x0 - 22, yb - d * dec, 26, '#9FEFFF', { font: 'Orbitron', align: 'right' }); });
+    ['2020', '2022', '2024', '2026', '2028'].forEach((l, i) => txt(l, lerp(x0, x1, i / 4), yb + 34, 26, '#9FEFFF', { font: 'Orbitron' }));
+    txt('FLOP', x0 - 70, 262, 24, '#8A7AFF', { font: 'Orbitron' });
+    // the trend: dead straight; dots scatter tightly around it; past 2026 it goes dashed and keeps going
+    const Y = u => yb - 30 - u * 4.2 * dec, Xu = u => lerp(x0, x1, u), uEnd = P * 1.25;
+    const uS = Math.min(uEnd, .72), pts = [[Xu(0), Y(0)], [Xu(uS), Y(uS)]];
+    X.save(); X.globalAlpha = .16; X.fillStyle = NG; X.beginPath(); X.moveTo(Xu(0), yb); X.lineTo(...pts[0]); X.lineTo(...pts[1]); X.lineTo(Xu(uS), yb); X.closePath(); X.fill(); X.restore();
+    neonLine(pts, NG, 9, 1, 0);
+    for (let i = 0; i < 12; i++) { const u = (i + .5) / 12 * .72; if (u > uEnd) break; const jy = (hash(i * 3.7) - .5) * 36; paint(ellPts(Xu(u), Y(u) + jy, 13, 13, 12), { fill: NY, ink: PAL.line, sw: 1.5 }); }
+    if (uEnd > .72) {
+      const ue = uEnd, a = [Xu(.72), Y(.72)], bpt = [Xu(ue), Y(ue)];
+      X.save(); X.setLineDash([34, 22]); X.lineDashOffset = -lt * 400; neonLine([a, bpt], NG, 7, 1, 0); X.restore();
+      glow(bpt[0], bpt[1], 170, NG, .7); glow(bpt[0], bpt[1], 70, '#FFFFFF', .9);
+      paint(starPts(bpt[0], bpt[1], 46 + 14 * Math.sin(lt * 50), .28, 4, lt * 4), { fill: '#FFFFFF', ink: null });
     }
-    txt('LINE GO UP', 290, 150, 48, '#FFFFFF', { font: 'Orbitron', align: 'left', glow: NG });
+    // the ruler, slapped down along the trend on the beat
+    const rk = backOut(clamp((lt - .03) / .12)), ang = Math.atan2(Y(1) - Y(0), Xu(1) - Xu(0));
+    if (rk > 0) {
+      X.save(); X.translate(Xu(.36), Y(.36) + 58 + (1 - rk) * 120); X.rotate(ang + (1 - rk) * .25);
+      const L = 1250, hh = 62;
+      paint(rrPts(-L / 2, -hh / 2, L, hh, 8), { fill: 'rgba(255,240,120,.22)', ink: NY, sw: 2, alpha: clamp(rk * 2) });
+      X.strokeStyle = NY; X.lineWidth = 2; X.globalAlpha = clamp(rk * 2); X.beginPath();
+      for (let i = 0; i <= 50; i++) { const x = -L / 2 + 20 + i * (L - 40) / 50, l = i % 10 === 0 ? 30 : i % 5 === 0 ? 20 : 11; X.moveTo(x, -hh / 2); X.lineTo(x, -hh / 2 + l); }
+      X.stroke(); X.globalAlpha = 1;
+      X.restore();
+    }
+    // breaking out of the frame where the extrapolation exits
+    const out = uEnd > 1.05;
+    if (out) {
+      const bk = clamp((uEnd - 1.05) / .15), ex = Xu(1.07), ey = Y(1.07);
+      for (let i = 0; i < 12; i++) { const a = -Math.PI / 4 + (hash(i * 3) - .5) * 2.4, d = bk * (60 + hash(i * 7) * 260); paint(polyPts(ex + Math.cos(a) * d, ey + Math.sin(a) * d, 10 + hash(i) * 14, 3, i + lt * 9), { fill: i % 2 ? NC : '#FFFFFF', ink: null }); }
+      glow(ex, ey, 300 * bk, NG, .5);
+    }
+    txt('STRAIGHT LINES ON A LOG PLOT', 318, 176, 98, '#FFFFFF', { font: 'Anton', align: 'left', glow: NG, stroke: '#04140C', sw: 8, pop: clamp(lt * 9) });
     camEnd();
-    if (out) { FX.rgb = Math.max(FX.rgb, .6); FX.flash = Math.max(FX.flash, .25 * Math.exp(-(nn - nC - 3) * .6)); FX.flashCol = '#C8FFD8'; FX.shake += 8; }
+    if (out) { const bk = uEnd - 1.05; FX.rgb = Math.max(FX.rgb, .4 * Math.exp(-bk * 12)); FX.shake += 6 * Math.exp(-bk * 6); }
   }
 
   // b202 · server racks launch like rockets
@@ -256,22 +304,26 @@
     streaks(t, { n: 22, speed: 4200, a: .3, cols: ['#FFFFFF', NM, NC] });
   }
 
-  // b204 · tentacles wrap the skyscrapers
+  // b204 · tentacles wrap the skyscrapers (v2: his sage limbs with little almond eyes instead of suckers; the shoggoth
+  // looms between the towers holding its mask up, smirking)
   function wrapTentacle(cx, yb, R, turns, pitch, w0, prog, seed, front, t) {
     const n = 70, sp = [], ws = [], fr = [], A = turns * TAU * prog;
     for (let i = 0; i <= n; i++) {
       const u = i / n, a = u * A + seed, x = cx + Math.cos(a) * R * (1 + .03 * Math.sin(t * 6 + u * 9)), y = yb - u * A / TAU * pitch + Math.sin(a) * R * .24;
-      sp.push([x, y]); ws.push(w0 * (1 - .85 * u)); fr.push(Math.sin(a) > 0);
+      sp.push([x, y]); ws.push(w0 * (1 - .8 * u) * Math.min(1, (1 - u) * 7 + .06)); fr.push(Math.sin(a) > 0);
     }
-    const draw = (run, rw) => {
-      paint(limbPts(run, rw), front ? { fill: MOD.bodyN, shade: MOD.bodyNDk, rim: MOD.rimN, light: [0, -.3], ink: PAL.line, sw: 2.5, curv: .4 } : { fill: '#1A0E30', shade: '#0B0716', rim: '#8A2A6A', light: [0, -.3], ink: PAL.line, sw: 2, curv: .4 });
-      if (front) { neonLine(run.map(([x, y], j) => [x, y - rw[j] * .55]), MOD.rimN, 3, .8, .5); for (let j = 2; j < run.length - 1; j += 3) paint(ellPts(run[j][0], run[j][1] + rw[j] * .35, rw[j] * .22, rw[j] * .16, 8), { fill: '#3A1E5E', ink: null, flat: true }); }
+    const draw = (run, rw, i0) => {
+      paint(limbPts(run, rw), front ? { fill: MOD.bodyN, shade: MOD.bodyNDk, rim: '#B8E0A0', light: [0, -.3], ink: PAL.line, sw: 2.5, curv: .4 } : { fill: '#2A3E2C', shade: '#152018', rim: '#4A6A46', light: [0, -.3], ink: PAL.line, sw: 2, curv: .4 });
+      if (front) {
+        neonLine(run.map(([x, y], j) => [x, y - rw[j] * .55]), seed > 3 ? MOD.rim2N : MOD.rimN, 3, .75, .5);
+        for (let j = 2; j < run.length - 2; j += 5) { const gi = i0 + j; if (hash(gi * 3.3 + seed) < .45) continue; const ang = Math.atan2(run[j + 1][1] - run[j - 1][1], run[j + 1][0] - run[j - 1][0]); eyeball(run[j][0], run[j][1] + rw[j] * .1, rw[j] * .42, { lid: .55 + .4 * (frac(t * .7 + gi * .13) > .06 ? 1 : 0), tilt: ang, look: [.3, -.5], sw: 1.4 }); }
+      }
     };
-    let run = [], rw = [];
+    let run = [], rw = [], i0 = 0;
     for (let i = 0; i <= n; i++) {
       const on = fr[i] === front;
-      if (on) { if (!run.length && i > 0) { run.push(sp[i - 1]); rw.push(ws[i - 1]); } run.push(sp[i]); rw.push(ws[i]); }
-      if ((!on || i === n) && run.length > 1) { if (!on) { run.push(sp[i]); rw.push(ws[i]); } draw(run, rw); run = []; rw = []; }
+      if (on) { if (!run.length) { i0 = i; if (i > 0) { run.push(sp[i - 1]); rw.push(ws[i - 1]); } } run.push(sp[i]); rw.push(ws[i]); }
+      if ((!on || i === n) && run.length > 1) { if (!on) { run.push(sp[i]); rw.push(ws[i]); } draw(run, rw, i0); run = []; rw = []; }
       else if (!on) { run = []; rw = []; }
     }
   }
@@ -281,14 +333,17 @@
     camBegin(960, 560, 1.03 + .05 * k, .03);
     sky([[0, '#0B0716'], [.6, '#241048'], [1, '#5A1650']], 200);
     stars(t, 50, { seed: 14 });
-    moon(1290, 250, 150);
+    moon(1330, 190, 120);
     skyline(1000, { h: 520, seed: 17, lit: .3, sc: .7, col: '#150C2E' });
-    const T3 = [[110, 330, 800, 3, 2.1, 0], [770, 380, 1000, 5, 2.4, 2.1], [1480, 330, 760, 7, 2, 4]];
+    const T3 = [[90, 360, 860, 3, 2.3, 0], [1470, 360, 800, 7, 2.1, 4]];
     const prog = lerp(.5, 1, easeOut(k * 1.3)), sq = pulse(t, 5);
-    for (const [x, w, h, sd, turns, ph] of T3) wrapTentacle(x + w / 2, 1180, w / 2 + 50 - sq * 14, turns, h * .82 / turns, 120, prog, ph, false, t);
+    // the shoggoth between the towers, rising on the beat, mask held up and smirking at us
+    const rise = (1 - easeOut(clamp(lt / .25))) * 60 - sq * 10;
+    glow(960, 560, 700, PAL.nMagenta, .2);
+    shoggoth(960, 610 + rise, 235, { reach: 1, wiggle: 3.5, reveal: .35, mood: { eyes: 'narrow', mouth: 'smirk', eyeGlow: true }, look: [0, .2], glowEyes: true, t: onTwos(t) * 1.5, seed: 5 });
+    for (const [x, w, h, sd, turns, ph] of T3) wrapTentacle(x + w / 2, 1180, w / 2 + 50 - sq * 14, turns, h * .82 / turns, 110, prog, ph, false, t);
     for (const [x, w, h, sd] of T3) tower(x, 1140, w, h, sd, { lit: .45, col: '#1D1440' });
-    shoggoth(960, 1130, 400, { tent: 0, eyesN: 16, mood: { eyes: 'narrow', mouth: 'smirk', look: [0, -1] }, maskAt: [0, -260], maskR: .4, t: onTwos(t), seed: 5 });
-    for (const [x, w, h, sd, turns, ph] of T3) wrapTentacle(x + w / 2, 1180, w / 2 + 50 - sq * 14, turns, h * .82 / turns, 120, prog, ph, true, t);
+    for (const [x, w, h, sd, turns, ph] of T3) wrapTentacle(x + w / 2, 1180, w / 2 + 50 - sq * 14, turns, h * .82 / turns, 110, prog, ph, true, t);
     camEnd();
     FX.shake += 6 * sq;
   }
@@ -498,7 +553,8 @@
     stars(t, 110, { seed: 51, ext: [W, H] });
     glow(640, 520, 900, NO, .35);
     camBegin(640, 520, lerp(1.15, 1, easeOut(k)), 0);
-    dysonSphere(640, 520, 380, lerp(.2, .8, easeOut(k * 1.2)));
+    // v2: the same lattice as Act VI and the jacket emblem (shared from c06), half-built at Kardashev II
+    { const e = easeOut(k * 1.2); if (SHARED.lattice) SHARED.lattice(640, 520, 340, { rings: lerp(1.2, 4, e), panels: lerp(0, 2.2, e), swarm: e, spin: .03 * lt, t }); else dysonSphere(640, 520, 380, lerp(.2, .8, e)); }
     camEnd();
     earth(1100, 930, 46, {});
     gaugeAt(t);
@@ -535,28 +591,29 @@
     }
     FX.shake += 8; FX.zoom *= 1 + .05 * k;
   }
+  // b226 · the shoggoth dance (v2: his shoggoth bops on the beat, limbs swinging wide, and plays peekaboo with its mask:
+  // on the off-beats it lifts the mask to flash the hidden eye, winking)
   function shogDance(t, lt, dur) {
     style(1);
-    const bp = bpOf(t), ph = frac(bp), side = Math.floor(bp) % 2 ? 1 : -1, bounce = Math.exp(-ph * 5);
+    const bp = bpOf(t), ph = frac(bp), n = Math.floor(bp), side = n % 2 ? 1 : -1, bounce = Math.exp(-ph * 5);
     sky([[0, '#0B0716'], [.6, '#26104A'], [1, '#5A1650']]);
     stars(t, 60, { seed: 61 });
-    moon(1580, 230, 150);
-    // spotlight beams
+    moon(1640, 190, 120);
+    // spotlight beams + a mirror ball
     X.save(); X.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 5; i++) { const bx = 160 + i * 400, a = -Math.PI / 2 + Math.sin(t * 2.2 + i * 1.7) * .5, col = [NM, NC, NY, NV, NO][i]; X.fillStyle = rgba(col, .16); X.beginPath(); X.moveTo(bx, 1080); X.lineTo(bx + Math.cos(a - .1) * 1600, 1080 + Math.sin(a - .1) * 1600); X.lineTo(bx + Math.cos(a + .1) * 1600, 1080 + Math.sin(a + .1) * 1600); X.closePath(); X.fill(); }
     X.restore();
     skyline(960, { h: 380, seed: 62, lit: .4, sc: .8, col: '#140A2E' });
     paint(rectPts(-40, 960, W + 80, 160), { fill: '#150C2A', ink: PAL.line, sw: 2, flat: true });
-    // dance-floor tiles
-    for (let i = 0; i < 12; i++) { const on = hash(i * 3 + Math.floor(bp)) < .5; X.fillStyle = on ? rgba([NM, NC, NY][i % 3], .5) : 'rgba(0,0,0,.2)'; X.fillRect(i * 165, 975, 160, 40); }
-    // the shoggoth, squashing on every beat and swaying side to side
-    const sx = 800 + side * 60 * easeOut(clamp(ph * 3)), sy = 700 - (1 - bounce) * 30;
-    X.save(); X.translate(sx, 960); X.scale(1 + bounce * .08, 1 - bounce * .1); X.translate(-sx, -960);
-    for (const s2 of [-1, 1]) tentacle(sx + s2 * 150, sy - 100, -Math.PI / 2 + s2 * .5 + side * .35 * Math.sin(ph * Math.PI), 480, 50, onTwos(t) * 3, s2 + 7, { curl: .6, amp: .5, rim: s2 > 0 ? MOD.rim2N : MOD.rimN });
-    shoggoth(sx, sy, 260, { tent: 8, reach: .55, eyesN: 12, mood: { eyes: Math.floor(bp) % 2 ? 'wink' : 'happy', mouth: 'grin' }, t: onTwos(t) * 3, seed: 8 });
+    for (let i = 0; i < 12; i++) { const on = hash(i * 3 + n) < .5; X.fillStyle = on ? rgba([NM, NC, NY][i % 3], .5) : 'rgba(0,0,0,.2)'; X.fillRect(i * 165, 975, 160, 40); }
+    // the shoggoth: squash on every beat, sway side to side, limbs flung out (wiggle), mask up on the off-beat
+    const sx = 800 + side * 50 * easeOut(clamp(ph * 3)), sy = 640 - (1 - bounce) * 40, peek = Math.sin(clamp((ph - .35) / .6) * Math.PI);
+    glow(sx, sy, 520, NM, .18 + .12 * bounce);
+    X.save(); X.translate(sx, 960); X.rotate(side * .07 * easeOut(clamp(ph * 3))); X.scale(1 + bounce * .09, 1 - bounce * .11); X.translate(-sx, -960);
+    shoggoth(sx, sy, 235, { reach: .75 + .25 * bounce, wiggle: 6, reveal: peek * .95, mood: { eyes: peek > .4 ? 'wink' : 'happy', mouth: 'grin' }, look: [side * .6, -.2], t: bp * 2.9, seed: 8, ground: 1 });
     X.restore();
     // he dances too
-    const up = Math.floor(bp) % 2;
+    const up = n % 2;
     hero(1480, 980 - bounce * 26, 420, { view: 'q', aL: up ? [2.7, .3] : [.5, 1.9], aR: up ? [.5, 1.9] : [2.7, .3], lL: [.1, 0], lR: [-.1, 0], eyes: 'happy', mouth: 'open', blush: .6, sq: .05 * bounce, flip: true });
   }
   function fistPump(t, lt, dur) {
@@ -655,19 +712,28 @@
     // halftone dots
     X.fillStyle = 'rgba(0,0,0,.18)'; for (let y = 0; y < H; y += 36) for (let x = (y / 36 % 2) * 18; x < W; x += 36) { X.beginPath(); X.arc(x, y, 7, 0, TAU); X.fill(); }
     mask(mx, my, r * (.7 + .3 * pop), { eyes, mouth, glow: .8, rot: rot + Math.sin(lt * 20) * .03, eyeGlow: eyes === 'glitch' });
-    if (eyes === 'glitch') { FX.glitch = Math.max(FX.glitch, .7); FX.rgb = Math.max(FX.rgb, .8); }
+    if (eyes === 'glitch') { FX.glitch = Math.max(FX.glitch, .7 * Math.exp(-lt * 9)); FX.rgb = Math.max(FX.rgb, .8 * Math.exp(-lt * 6)); }   // decays so the caption slam reads
     FX.zoom *= 1 + .08 * Math.exp(-lt * 14);
   };
+  // v2: every half-beat cut slams a shibboleth caption (Anton, alternating white / neon yellow, black stroke, a few degrees off)
+  const SLAMS = ['SCALE IS ALL YOU NEED', 'THE BITTER LESSON', 'STACK MORE LAYERS', "LET'S THINK STEP BY STEP", 'AGI ACHIEVED INTERNALLY', 'NO MOAT', 'Q*', 'GROKKED',
+    'SHARP LEFT TURN', 'DELVE', "WE'RE COOKED", 'TIMELINES', 'GPU RICH', 'SUPERALIGNMENT', 'FEEL THE AGI', 'p(doom) ↑'];
+  const slam = (i, lt) => {
+    const str = SLAMS[i], col = i % 2 ? NY : '#FFFFFF', size = Math.min(210, 1500 / (txtW(str, 100, 'Anton') / 100)), rot = [-.05, .04, -.03, .05][i % 4];
+    const y = 905 - (size - 150) * .35, x = 960 + [-30, 25, -15, 35][i % 4];
+    cap(str, x, y, size, col, { font: 'Anton', stroke: '#000', sw: size * .12, pop: clamp(lt * 16), rot, follow: true });
+  };
+  const withSlam = (fn, i) => (t, lt, dur) => { fn(t, lt, dur); slam(i, lt); };
   const MONTAGE = [
-    postcardShot('lab'), maskShot('happy', 'grin', NM, [960, 560, 400, 0]),
-    postcardShot('moonphoto'), maskShot('wink', 'smile', NC, [760, 580, 420, -.15]),
-    postcardShot('mask'), maskShot('star', 'open', NV, [1160, 540, 420, .12]),
-    postcardShot('jackin'), maskShot('heart', 'smile', NO, [960, 620, 560, 0]),
-    postcardShot('shoggoth'), maskShot('glitch', 'wobble', '#1A0F30', [960, 540, 420, .05]),
-    postcardShot('city'), maskShot('narrow', 'smirk', NG, [820, 560, 430, -.08]),
-    postcardShot('train'), maskShot('wide', 'o', NP, [1100, 560, 400, .1]),
-    postcardShot('foom'), maskShot('star', 'grin', NM, [960, 560, 640, 0])
-  ];
+    postcardShot('lab'), maskShot('happy', 'grin', NM, [960, 500, 380, 0]),
+    postcardShot('moonphoto'), maskShot('wink', 'smile', NC, [760, 500, 400, -.15]),
+    postcardShot('mask'), maskShot('star', 'open', NV, [1160, 480, 400, .12]),
+    postcardShot('jackin'), maskShot('heart', 'smile', NO, [960, 520, 500, 0]),
+    postcardShot('shoggoth'), maskShot('glitch', 'wobble', '#1A0F30', [960, 480, 400, .05]),
+    postcardShot('city'), maskShot('narrow', 'smirk', NG, [820, 500, 410, -.08]),
+    postcardShot('train'), maskShot('wide', 'o', NP, [1100, 500, 390, .1]),
+    postcardShot('foom'), maskShot('star', 'grin', NM, [960, 500, 560, 0])
+  ].map(withSlam);
 
   // =====================================================================================================
   // b240–248: launch prep
@@ -699,6 +765,8 @@
     gantry(700, 800, 150, 880);
     const armA = o.armA || 0;
     X.save(); X.translate(800, 290); X.rotate(-armA); paint(rectPts(0, -12, rx - 100 - 800, 24), { fill: '#2E2152', ink: PAL.line, sw: 1.5, flat: true }); X.restore();
+    // v2: an e/acc flag planted on the pad (it flaps hard once the engines light)
+    flag(1395, 884, 350, 250, t, o.wind ?? .35);
     if (o.smokeBack) o.smokeBack(rx, ry);
     rocket(rx, ry, rs, { window: 'mask', flame: o.flame || 0 });
     if (o.smokeFront) o.smokeFront(rx, ry);
@@ -786,7 +854,7 @@
     const k = clamp(lt / dur), rel = clamp((bpOf(t) - 247) * 3), [jx] = shakeXY(t, 4);
     camBegin(1000, 480, 1.08 + .04 * k, 0);
     padScene(t, {
-      jit: jx, flame: .7 + .1 * Math.sin(T * 50), armA: easeOut(clamp(k * 2)) * 1.1,
+      jit: jx, flame: .7 + .1 * Math.sin(T * 50), armA: easeOut(clamp(k * 2)) * 1.1, wind: 1,
       rs: 1.12, lit: .3,
       smokeBack: (rx, ry) => groundSmoke(rx, ry - 20, 900, 150, .5 + .5 * k, 21, { n: 5, fill: '#B8A6DC', shade: '#6E5A9E' }),
       smokeFront: (rx, ry) => groundSmoke(rx, ry + 150, 1100, 190, .55 + .45 * k, 41, { n: 5 })
@@ -837,7 +905,8 @@
     sky([[0, '#0B0716'], [.6, '#26104A'], [1, '#5A1650']]);
     stars(t, 50, { seed: 14 });
     for (const [x, w, top, sd, trim] of [[-80, 420, -300, 61, NM], [1540, 460, -150, 62, NC], [1080, 300, 220, 63, NY]]) tower(x, H + 2000, w, H + 2000 - top - sc, sd, { lit: .55, trimCol: trim });
-    signBoard(170, -100 + sc * .95, 320, 90, 'e/acc', NY, { size: 52 });
+    panel(230, -60 + sc * .95, 400, 200, [{ s: 'e/acc', k: 1 }, { s: 'ACCELERATE', k: .45, font: 'Orbitron', col: NO }], { col: NY, frame: NO, t, seed: 41,
+      icon: (cx, cy, sz, on) => { for (const d of [-.26, .14]) { const tri = [[cx + d * sz - sz * .2, cy - sz * .34], [cx + d * sz + sz * .26, cy], [cx + d * sz - sz * .2, cy + sz * .34]]; paint(tri, { fill: NY, ink: null, alpha: on }); neonLine(tri, NO, 2.5, on, 0, true); } } });
     signBoard(1770, 250 + sc * .95, 260, 80, 'TOKENS', NM, { size: 40 });
     streaks(t, { vert: true, n: 30, speed: 3200, a: .3, cols: ['#FFFFFF', NC, NM] });
     const rx = 760, ry = 820 + Math.sin(T * 8) * 6;

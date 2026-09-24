@@ -175,3 +175,20 @@ function shoggoth(x, y, s, o = {}) {
     }
   }
 }
+
+// ---------- the Assistant: the persona as a little yellow figure with the smiley mask for a head ----------
+// (the "operating system" view of the persona selection model). (x, y) = ground point, h = height in px.
+//   o.walk (phase, cycles) · o.wave (0..1 raises the right arm) · o.mood (mask options) · o.flip · o.alpha · o.glowK (neon halo)
+function assistant(x, y, h, o = {}) {
+  const neon = NEON >= .5, A = o.alpha ?? 1, k = h / 100, fl = o.flip ? -1 : 1, inkC = neon ? PAL.line : MOD.ink;
+  const col = neon ? '#F2F56A' : MOD.maskCol, dk = neon ? '#B8BC2E' : MOD.maskDk, sw = clamp(h / 90, .7, 4);
+  const ph = o.walk, s = ph != null ? Math.sin(ph * TAU) : 0, bob = ph != null ? -Math.abs(Math.cos(ph * TAU)) * 2.5 * k : 0;
+  if (neon && (o.glowK ?? .5) > 0) glow(x, y - 55 * k, 70 * k, PAL.nYellow, .25 * (o.glowK ?? .5) * A);
+  const P = (px, py) => [x + px * k * fl, y + py * k + bob];
+  const leg = (side, a) => { const hip = P(side * 6, -44), knee = P(side * 6 + Math.sin(a) * 20, -24), foot = P(side * 6 + Math.sin(a) * 30, -2); paint(limbPts([hip, knee, foot], [5.5 * k, 4.8 * k, 4.2 * k]), { fill: col, shade: dk, ink: inkC, sw, alpha: A, curv: .3, wet: 2 }); };
+  leg(-1, -.45 * s); leg(1, .45 * s);
+  paint(limbPts([P(0, -46), P(0, -60), P(0, -72)], [11 * k, 12 * k, 10 * k]), { fill: col, shade: dk, ink: inkC, sw, alpha: A, curv: .4, wet: 2, rim: neon ? '#FFFFD0' : undefined });
+  const arm = (side, a, raise) => { const sh = P(side * 9, -68), el = P(side * (15 + raise * 4), -58 - raise * 16 + Math.cos(a) * 2), hd = P(side * (19 + raise * 2) + Math.sin(a) * 6 * side, -48 - raise * 34); paint(limbPts([sh, el, hd], [4.2 * k, 3.8 * k, 3.6 * k]), { fill: col, shade: dk, ink: inkC, sw, alpha: A, curv: .3, wet: 2 }); };
+  arm(-1, s * .8, 0); arm(1, -s * .8, o.wave ? o.wave * (.8 + .2 * Math.sin(T * 14)) : 0);
+  mask(...P(0, -86), 17 * k, { eyes: 'open', mouth: 'smile', ...(o.mood || {}), alpha: A, glow: neon ? .4 : 0 });
+}

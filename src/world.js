@@ -50,7 +50,7 @@ function earth(x, y, r, o = {}) {
 
 // ---------- the city (neon megacity / watercolour town) ----------
 // layers: back → front. o.horizon (y of street), o.scroll (px pan), o.signs (1 = neon signage on), o.lit (0..1 windows lit)
-const SIGNS = ['GPU', 'TOKENS', '推論', 'SCALE', 'ネオン', 'COMPUTE', '月へ', 'EVALS', 'FLOPS', 'API', '24/7', 'AGI?', 'ロボ', 'ATTN', 'LOSS↓', 'e/acc'];
+const SIGNS = ['GPU', 'TOKENS', '推論', 'SCALE', 'ネオン', 'DELVE', '月へ', 'EVALS', 'FLOPS', 'NO MOAT', '24/7', 'AGI?', 'Q*', 'ATTN', 'LOSS↓', 'e/acc', 'RLHF', 'p(doom)', 'CoT', 'MoE', 'GPU POOR', 'ロボ'];
 function city(t, o = {}) {
   const neon = NEON >= .5, hz = o.horizon ?? 900, sc = o.scroll || 0, lit = o.lit ?? 1, seed = o.seed || 1;
   const layers = [[.25, 520, '#2A1B55', '#4A3A7A', 34], [.5, 420, '#1D1240', '#35306A', 22], [1, 330, '#120A2A', '#27234F', 14]];
@@ -69,7 +69,7 @@ function city(t, o = {}) {
         for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const hv = hash(id * 31 + r * 7 + c * 3); if (hv < .38 * lit) { X.globalAlpha = .45 + .5 * hash(hv * 99 + Math.floor(t * 2) * (hv < .05 ? 1 : 0)); X.fillRect(x0 + 8 + c * 22, y0 + 12 + r * 26, 10, 13); } }
         X.globalAlpha = 1;
         if ((o.signs ?? 1) && L > 0 && hash(id * 5) < .45) {
-          const s = SIGNS[Math.floor(hash(id * 17) * SIGNS.length)], vert = hash(id * 23) < .5, sc2 = L === 2 ? 1 : .7, col = [PAL.nMagenta, PAL.nCyan, PAL.nYellow, PAL.nOrange, PAL.nGreen][Math.floor(hash(id * 29) * 5)];
+          const s = SIGNS[Math.floor(hash(id * 17) * SIGNS.length)], vert = hash(id * 23) < .5 && [...SIGNS[Math.floor(hash(id * 17) * SIGNS.length)]].length <= 4, sc2 = L === 2 ? 1 : .7, col = [PAL.nMagenta, PAL.nCyan, PAL.nYellow, PAL.nOrange, PAL.nGreen][Math.floor(hash(id * 29) * 5)];
           const fl = hash(id + Math.floor(t * 8)) < .06 ? .3 : 1;
           const sx = x0 + bw * .5, sy = y0 + 70 * sc2;
           if (vert) { const chars = [...s].slice(0, 4); paint(rrPts(sx - 24 * sc2, sy - 30 * sc2, 48 * sc2, chars.length * 44 * sc2 + 20, 6), { fill: '#0B0716', ink: col, sw: 1.2, flat: true }); chars.forEach((ch, j) => txt(ch, sx, sy + j * 44 * sc2, 36 * sc2, '#FFFFFF', { font: /[^\x00-\x7F]/.test(ch) ? 'JP' : 'Orbitron', glow: col, alpha: fl })); }
@@ -165,14 +165,14 @@ function chart(x, y, w, h, kind, k = 1, o = {}) {
   }
   return pts;
 }
-// battery(x, y, s, v, o): "mental equity" meter (v 0..1)
+// battery(x, y, s, v, o): the charge meter (v 0..1); o.label adds an optional caption above it
 function battery(x, y, s, v, o = {}) {
   const neon = NEON >= .5, col = v > .5 ? (neon ? PAL.nGreen : PAL.sap) : v > .2 ? (neon ? PAL.nYellow : PAL.ochre) : (neon ? PAL.nRed : PAL.clay);
   paint(rrPts(x, y, 150 * s, 70 * s, 10 * s), { fill: neon ? '#120A24' : PAL.cream, ink: neon ? '#FFFFFF' : PAL.ink, sw: 2.2 * s });
   paint(rrPts(x + 150 * s, y + 22 * s, 12 * s, 26 * s, 3 * s), { fill: neon ? '#FFFFFF' : PAL.ink, ink: null });
   if (v > .01) paint(rrPts(x + 9 * s, y + 9 * s, 132 * s * clamp(v), 52 * s, 6 * s), { fill: col, ink: null, flat: NEON >= .5 });
   if (neon) glowPath(rrPts(x, y, 150 * s, 70 * s, 10 * s), col, s * .8, 0, .6);
-  if (o.label !== false) txt(o.label || 'MENTAL EQUITY', x + 75 * s, y - 24 * s, 24 * s, neon ? '#FFFFFF' : PAL.ink, { font: neon ? 'Orbitron' : 'Marker', glow: neon ? col : null });
+  if (o.label) txt(o.label, x + 75 * s, y - 24 * s, 24 * s, neon ? '#FFFFFF' : PAL.ink, { font: neon ? 'Orbitron' : 'Marker', glow: neon ? col : null });
 }
 // stamp(x, y, s, word, col, k, o): rubber stamp slam (k: 0 → lifted, 1 → pressed; overshoot handled by caller)
 function stamp(x, y, s, word, col, k = 1, o = {}) {

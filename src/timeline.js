@@ -5,7 +5,8 @@
 // 'spin', 'glitch', 'shake', 'ink', 'white', 'black'; opts.td = its length in seconds (centred on the cut).
 // Everything must be a pure function of t: frames render in parallel and out of order. Use hash()/rnd()/jit(), never Math.random().
 const CH = [];
-const POSTCARDS = {};   // name → t => paints a full frame (exported by chapters for callback montages)
+const POSTCARDS = {};
+const SHARED = {};     // helpers chapters export for each other (e.g. SHARED.lattice from c06). Always call with a fallback.   // name → t => paints a full frame (exported by chapters for callback montages)
 function chapter(name, start, end, shots) { CH.push({ name, start, end, shots }); CH.sort((a, b) => a.start - b.start); }
 
 // Section map (from the audio analysis). I = edit intensity: drives the automatic zoom punches, shake and RGB hits.

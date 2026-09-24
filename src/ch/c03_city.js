@@ -1,9 +1,11 @@
 // src/ch/c03_city.js: Act III · Neon Megacity (b136–b200, 46.65–68.59 s). Full neon.
 // Rain street → TV wall → data centre → GPUs go brrr → parrot → strawberry → upgrade clinic → monorail → Moloch → paperclips → the moon is a mask.
+// v2: meme billboards (neonPanel/tubeText, exported on SHARED), 'Thinking…' on the monorail, the parrot's next-token line,
+// and the moon turning into the real mask() (his lopsided pale-yellow one) with the shared tentacle() rising around it.
 (() => {
   const B = n => bt(n);
   const NC = [PAL.nMagenta, PAL.nCyan, PAL.nYellow, PAL.nOrange, PAL.nGreen, PAL.nViolet];
-  const SIGN_WORDS = ['GPU', 'TOKENS', '推論', 'e/acc', '月へ', 'ネオン', 'SCALE', 'COMPUTE', '24/7', 'LOSS↓', 'ATTN', 'ロボ', 'API', 'AGI?', '夜', 'EVALS'];
+  const SIGN_WORDS = ['GPU', 'TOKENS', '推論', 'DELVE', '月へ', 'ネオン', 'Q*', 'RLHF', '24/7', 'LOSS↓', 'MoE', 'ロボ', 'CoT', 'AGI?', '夜', 'EVALS'];
   const isJP = s => /[^\x00-\x7F↓]/.test(s);
 
   // ---------- private helpers ----------
@@ -72,6 +74,47 @@
     X.restore();
   }
 
+  // ---------- v2 neon signage: tube lettering + lit billboards that sit in the rain ----------
+  // tubeText: coloured tube stroke + hot tinted core + a soft halo; o.dead/o.deadOff darkens one flickering letter
+  function tubeText(s, x, y, size, col, o = {}) {
+    const A = o.alpha ?? 1, font = o.font || 'Anton', core = o.core || mixCol(col, '#FFFFFF', .74), align = o.align || 'center';
+    if (A <= .01 || size < 3) return;
+    if (o.glow !== false) txt(s, x, y, size, col, { font, glow: col, alpha: A * .5 * (o.glowK ?? 1), align });
+    txt(s, x, y, size, core, { font, stroke: col, sw: size * (o.sw ?? .1), alpha: A, align, rot: o.rot });
+    if (o.dead != null && o.deadOff) {
+      const w = txtW(s, size, font), x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+      txt(s[o.dead], x0 + txtW(s.slice(0, o.dead), size, font), y, size, '#2C2240', { font, stroke: '#140E22', sw: size * (o.sw ?? .1), alpha: A, align: 'left' });
+    }
+  }
+  // neonPanel(x, y, w, h, lines, o): a lit billboard centred at (x, y): metal housing, dark panel with a coloured wash,
+  // an inner tube border, auto-fitted tube lettering. lines: strings or {s, k (relative line height), col, font, dead}.
+  // o: col, frame, font, t, seed, alpha, spill, icon(cx, cy, s, on) drawn in a square on the left, flickP
+  function neonPanel(x, y, w, h, lines, o = {}) {
+    const A = o.alpha ?? 1; if (A <= .01 || w < 8 || h < 8) return;
+    const col = o.col || PAL.nCyan, frame = o.frame || col, font = o.font || 'Anton', seed = o.seed || 1, t = o.t ?? T;
+    const on = hash(seed * 13.7 + Math.floor(t * 14)) < (o.flickP ?? .035) ? .45 : 1;
+    const bx = x - w / 2, by = y - h / 2, m = Math.min(w, h), e = m * .065;
+    if (o.spill !== 0) glow(x, y, Math.max(w, h) * .85, col, .2 * (o.spill ?? 1) * A * on);
+    paint(rrPts(bx - e, by - e, w + 2 * e, h + 2 * e, e), { fill: o.housing || '#231A3C', shade: '#0E0A1C', rim: o.rim || '#6A5AAA', ink: PAL.line, sw: clamp(m / 70, 1, 3.5), alpha: A });
+    X.save(); X.globalAlpha = A;
+    const g = X.createLinearGradient(0, by, 0, by + h); g.addColorStop(0, o.panel || '#170C30'); g.addColorStop(1, '#07040F'); X.fillStyle = g; X.fillRect(bx, by, w, h);
+    X.globalCompositeOperation = 'lighter';
+    const rg = X.createRadialGradient(x, y, 0, x, y, Math.max(w, h) * .6); rg.addColorStop(0, rgba(col, .22 * on)); rg.addColorStop(1, rgba(col, 0)); X.fillStyle = rg; X.fillRect(bx, by, w, h);
+    X.restore();
+    neonLine(rrPts(bx + e * .55, by + e * .55, w - e * 1.1, h - e * 1.1, e * .5), frame, clamp(m / 80, 1, 4.5), .85 * A * on, 0, true);
+    if (m > 60) { X.fillStyle = '#8A80B0'; X.globalAlpha = A; for (const [qx, qy] of [[bx - e * .5, by - e * .5], [bx + w + e * .5, by - e * .5], [bx - e * .5, by + h + e * .5], [bx + w + e * .5, by + h + e * .5]]) { X.beginPath(); X.arc(qx, qy, Math.max(1.5, e * .18), 0, TAU); X.fill(); } X.globalAlpha = 1; }
+    const L = lines.map(l => typeof l === 'string' ? { s: l } : l), sumK = L.reduce((a, l) => a + (l.k ?? 1), 0);
+    const ix = o.icon ? h * .78 : 0, availW = (w - ix) * .86, availH = h * .74, unit = availH / sumK;
+    let yy = by + (h - availH) / 2;
+    L.forEach((l, i) => {
+      const f = l.font || font, lh = unit * (l.k ?? 1), size = Math.min(lh * (f === 'Anton' ? .92 : .8), availW / (txtW(l.s, 100, f) / 100));
+      tubeText(l.s, x + ix / 2, yy + lh / 2 + size * .03, size, l.col || col, { font: f, alpha: A * on, dead: l.dead, deadOff: l.dead != null && hash(seed * 3.1 + i + Math.floor(t * 11)) < .4 });
+      yy += lh;
+    });
+    if (o.icon) o.icon(bx + e + ix * .5, y, h * .62, on);
+  }
+  SHARED.neonPanel = neonPanel; SHARED.tubeText = tubeText;
+
   // ---------- perspective street (shot 1a) ----------
   const PV = { f: 900, vx: 960, vy: 470, cx: 0, cy: -170, cz: 0 };
   const pj = (x, y, z) => { const d = Math.max(20, z - PV.cz), s = PV.f / d; return [PV.vx + (x - PV.cx) * s, PV.vy + (y - PV.cy) * s, s]; };
@@ -88,7 +131,17 @@
     }
     return out;
   });
-  const FAR = Array.from({ length: 16 }, (_, i) => ({ x: -2600 + i * 330 + hash(i * 4.4) * 60, w: 300 + hash(i * 2.2) * 120, h: 260 + hash(i * 3.3) * 700, z: 4600 + hash(i * 1.1) * 900 }));
+  // v2: two big jutting billboards over the street (camera-facing, so they stay legible) + meme blade signs
+  {
+    const [L, R] = STREET;
+    delete L[2].sign; L[2].meme = { dz: 200, gap: 30, w: 400, y0: 270, y1: 540, lines: ['ATTENTION IS', 'ALL YOU NEED'], col: PAL.nCyan, frame: PAL.nMagenta };
+    L[3].sign = { y: 230, h: 470, w: 110, col: PAL.nYellow, s: 'GPU', dz: 110 };
+    L[5].sign = { y: 260, h: 420, w: 110, col: PAL.nGreen, s: 'e/acc', dz: 200 };
+    delete R[3].sign; R[3].meme = { dz: 90, gap: 60, w: 380, y0: 340, y1: 615, lines: ['SCALE IS', 'ALL YOU NEED'], col: PAL.nPink, frame: PAL.nYellow };
+    R[4].sign.s = 'TOKENS';
+    R[2].bill.y += 110;   // the near smiley screen sits above the SCALE board
+  }
+  const FAR =Array.from({ length: 16 }, (_, i) => ({ x: -2600 + i * 330 + hash(i * 4.4) * 60, w: 300 + hash(i * 2.2) * 120, h: 260 + hash(i * 3.3) * 700, z: 4600 + hash(i * 1.1) * 900 }));
 
   function streetScene(t, o) {
     const { hz, cz } = o; PV.cz = cz;
@@ -164,6 +217,20 @@
         lights.push({ x: x0, gy: g0 + 2, w, len: (g0 - a[1]) * 1.1, col: S.col, a: .3 * fl });
       }
     }
+    // v2: a big meme billboard jutting out over the street on two brackets
+    if (b.meme) {
+      const M = b.meme, zs = b.z0 + M.dz; if (zs > cz + 60) {
+        const a = pj(xi - sd * M.gap, -M.y1, zs), c = pj(xi - sd * (M.gap + M.w), -M.y0, zs), x0 = Math.min(a[0], c[0]), w = Math.abs(c[0] - a[0]), h = c[1] - a[1];
+        for (const hy of [M.y0 + (M.y1 - M.y0) * .18, M.y0 + (M.y1 - M.y0) * .82]) { const p1 = pj(xi, -hy, zs + 40), p2 = pj(xi - sd * (M.gap + 40), -hy, zs); line([[p1[0], p1[1]], [p2[0], p2[1]]], Math.max(1, 5 * p2[2]), '#2E2450', 0); }
+        neonPanel(x0 + w / 2, a[1] + h / 2, w, h, M.lines, { col: M.col, frame: M.frame, t, seed: b.id });
+        // rain dripping off the bottom edge
+        X.save(); X.strokeStyle = 'rgba(200,245,255,.55)'; X.lineWidth = 1.5; X.beginPath();
+        for (let i = 0; i < 7; i++) { const u = (i + .5) / 7, k = frac(t * 1.7 + hash(i * 3 + b.id)), dx = x0 + u * w, dy = c[1] + 8 + k * 160 * a[2]; X.moveTo(dx, dy); X.lineTo(dx, dy + 12 * a[2]); }
+        X.stroke(); X.restore();
+        const g0 = pj(0, 0, zs)[1];
+        lights.push({ x: x0 + w * .1, gy: g0 + 2, w: w * .8, len: (g0 - a[1]) * 1.15, col: M.col, a: .32 });
+      }
+    }
     // big billboard with the smiley (follows the hero)
     if (b.bill) {
       const Bb = b.bill, zs = b.z0 + 40; if (zs > cz + 60) {
@@ -209,15 +276,17 @@
     walkers(t, lt, cz, PEDS);
     // holo-ad: a translucent smiley floating over the street
     {
-      const [x, y, s] = pj(-330, -560, 1250), r = 150 * s, fl = hash(Math.floor(t * 14)) < .12 ? .4 : 1;
-      X.save(); X.globalCompositeOperation = 'lighter';
-      glow(x, y, r * 2, PAL.nCyan, .25 * fl);
+      const [x, y, s] = pj(0, -640, 1500), r = 150 * s, fl = hash(Math.floor(t * 14)) < .12 ? .4 : 1;
+      // (drawn source-over: it sits in front of the blown-out moon, so it has to carry its own contrast)
+      glow(x, y, r * 2, PAL.nCyan, .3 * fl);
       const lk = lookAt(x, y, HERO_AT[0], HERO_AT[1], 500);
-      mask(x, y, r, { eyes: 'open', mouth: 'grin', look: lk, tilt3d: lk[0] * .6, col: '#5FF6FF', alpha: .5 * fl, glow: 0 });
-      X.restore();
-      X.globalAlpha = .25 * fl; X.fillStyle = '#000'; for (let yy = y - r; yy < y + r; yy += 6) X.fillRect(x - r, yy, r * 2, 2.5); X.globalAlpha = 1;
+      mask(x, y, r, { eyes: 'open', mouth: 'grin', look: lk, tilt3d: lk[0] * .6, col: '#7FF4FF', alpha: .82 * fl, glow: 0 });
+      X.save(); tracePath(X, maskShape(r * 1.02).map(([px, py]) => [x + px, y + py])); X.clip();
+      X.globalAlpha = .3 * fl; X.fillStyle = '#0A3A5A'; for (let yy = y - r * 1.3 + (t * 40) % 6; yy < y + r * 1.3; yy += 6) X.fillRect(x - r * 1.2, yy, r * 2.4, 2.5);
+      X.restore(); X.globalAlpha = 1;
+      glowPath(maskShape(r).map(([px, py]) => [x + px, y + py]), PAL.nCyan, Math.max(.4, r / 60), .2, .7 * fl);
       // projector beam from the street
-      const [bx, by] = pj(-330, 0, 1250); X.save(); X.globalCompositeOperation = 'lighter'; const g = X.createLinearGradient(0, by, 0, y); g.addColorStop(0, rgba(PAL.nCyan, .25)); g.addColorStop(1, rgba(PAL.nCyan, 0)); X.fillStyle = g; X.beginPath(); X.moveTo(bx - 4, by); X.lineTo(x - r * .9, y + r * .6); X.lineTo(x + r * .9, y + r * .6); X.lineTo(bx + 4, by); X.fill(); X.restore();
+      const [bx, by] = pj(0, 0, 1500); X.save(); X.globalCompositeOperation = 'lighter'; const g = X.createLinearGradient(0, by, 0, y); g.addColorStop(0, rgba(PAL.nCyan, .25)); g.addColorStop(1, rgba(PAL.nCyan, 0)); X.fillStyle = g; X.beginPath(); X.moveTo(bx - 4, by); X.lineTo(x - r * .9, y + r * .6); X.lineTo(x + r * .9, y + r * .6); X.lineTo(bx + 4, by); X.fill(); X.restore();
     }
     // steam from a manhole
     { const [x, y, s] = pj(-160, 0, 1100); for (let i = 0; i < 3; i++) steam(x, y, 90 * s, frac(t * .5 + i / 3), .22); }
@@ -236,10 +305,13 @@
 
   // ---------- generic sets ----------
   // city() with the shared SIGNS list, minus the one real product name (restored right after the call)
+  // v2: swaps in a curated list of short words while it draws (city()'s vertical signs cut words at 4 characters,
+  // which turned 'p(doom)' into 'p(do'), then restores the shared list
+  const CITY_WORDS = ['GPU', '推論', 'Q*', 'RLHF', 'CoT', 'MoE', 'ネオン', '月へ', '24/7', 'AGI?', 'SAE', 'ATTN', 'ロボ', '夜', 'FLOP', 'API', 'EVAL', 'DPO', '電脳', 'LoRA', 'KL', 'e/acc'];
   function cityX(t, o) {
-    const i = typeof SIGNS !== 'undefined' ? SIGNS.indexOf('H100') : -1;
-    if (i >= 0) SIGNS[i] = 'GPU';
-    try { city(t, o); } finally { if (i >= 0) SIGNS[i] = 'H100'; }
+    if (typeof SIGNS === 'undefined') { city(t, o); return; }
+    const keep = SIGNS.slice(); SIGNS.length = 0; SIGNS.push(...CITY_WORDS);
+    try { city(t, o); } finally { SIGNS.length = 0; SIGNS.push(...keep); }
   }
   // wet floor band from y0 down, with reflections [{x, w, col, a}] mirrored below y0
   function wetFloor(t, y0, refls = [], o = {}) {
@@ -375,9 +447,23 @@
     X.fillStyle = '#0E0820'; X.fillRect(camX - 10, 0, W + 20, 118);
     for (let k = Math.floor(camX / 120) * 120; k < camX + W + 120; k += 120) { X.fillStyle = (k / 120) % 2 ? '#3A0F3A' : '#1A0A2E'; X.beginPath(); X.moveTo(k, 60); X.lineTo(k + 120, 60); X.lineTo(k + 132, 128); X.lineTo(k + 12, 128); X.fill(); }
     neonLine([[camX - 10, 128], [camX + W + 10, 128]], PAL.nMagenta, 3, .9, 0);
-    for (const [wx, word, col] of [[-620, 'テレビ', PAL.nCyan], [200, '24/7', PAL.nYellow], [980, 'ネオン', PAL.nMagenta], [1760, 'TOKENS', PAL.nGreen]]) {
+    for (const [wx, word, col] of [[-620, 'テレビ', PAL.nCyan], [980, 'ネオン', PAL.nMagenta], [1760, 'TOKENS', PAL.nGreen]]) {
       if (wx < camX - 300 || wx > camX + W + 300) continue;
       ntxt(word, wx, 32, 44, col);
+    }
+    // v2: the shop sign. The TVs below are literally stacked layers; the icon gains a layer on every beat.
+    {
+      const nL = 2 + clamp(Math.floor(b) - 140, 0, 3), drop = k => 1 - backOut(clamp(since(t, 140 + k) * 5));
+      for (const sx of [-260, 260]) { line([[250 + sx, 0], [250 + sx, 60]], 4, '#3A2E5A', 0); }
+      neonPanel(250, 118, 960, 110, ['STACK MORE LAYERS'], { col: PAL.nYellow, frame: PAL.nCyan, t, seed: 77, rim: '#8A7ACA',
+        icon: (cx, cy, s, on) => {
+          for (let i = 0; i < nL; i++) {
+            const dy = i >= 2 ? -drop(i - 1) * 60 : 0, yy = cy + s * .42 - i * s * .24 + dy, col = [PAL.nCyan, PAL.nMagenta, PAL.nYellow, PAL.nGreen, PAL.nOrange][i];
+            const pts = [[cx - s * .55, yy], [cx, yy - s * .2], [cx + s * .55, yy], [cx, yy + s * .2]];
+            paint(pts, { fill: '#0B0716', ink: null });
+            neonLine(pts, col, 3, on, 0, true);
+          }
+        } });
     }
     // sill
     X.fillStyle = '#1C1236'; X.fillRect(camX - 10, 820, W + 20, 30); neonLine([[camX - 10, 820], [camX + W + 10, 820]], PAL.nCyan, 2, .6, 0);
@@ -400,43 +486,58 @@
   function dataCentre(t, lt, dur) {
     style(1); FX.letterbox = .35;
     const p = easeInOut(lt / dur);
-    camBegin(960, 520 - 10 * p, 1 + .06 * p);
+    camBegin(960, 520 - 10 * p, 1 + .035 * p);
     vgrad(-100, -100, W + 200, H + 200, [[0, '#07030F'], [.45, '#1A0B36'], [.7, '#3A1052'], [.8, '#1A0A2E']]);
     cityX(t, { horizon: 820, scroll: 600 + lt * 40, street: false, seed: 5, signs: 1, tall: 1.15 });
-    // the building
-    const bx = 250, by = 70, bw = 1420, bh = 760;
+    // the building (v2: lower, so a billboard fits on its roof)
+    const bx = 330, by = 210, bw = 1260, bh = 640;
+    const ang = spinAngle(t, 144, [.6, 1.6, 3.5, 7]), nb = clamp(Math.floor(bpOf(t)) - 144, 0, 3), blur = [0, .25, .6, 1][nb];
+    // roof exhaust plumes (behind the billboard)
+    for (let i = 0; i < 4; i++) for (let k = 0; k < 2; k++) steam(bx + 160 + i * 313, by + 10, 90 + nb * 25, frac(t * (.6 + nb * .2) + i * .3 + k * .5), .3 + nb * .1, '#C8B8F0');
     paint(rectPts(bx, by, bw, bh + 40), { fill: '#150D2C', shade: '#0A0618', ink: PAL.line, sw: 3, rim: '#3A2A6A' });
     // exhaust fans on the top band, stepping up per beat
-    const ang = spinAngle(t, 144, [.6, 1.6, 3.5, 7]), nb = clamp(Math.floor(bpOf(t)) - 144, 0, 3), blur = [0, .25, .6, 1][nb];
-    for (let i = 0; i < 4; i++) fanFace(bx + 205 + i * 337, by + 100, 84, ang * (i % 2 ? -1 : 1) + i, blur, { led: i % 2 ? PAL.nCyan : PAL.nGreen });
+    for (let i = 0; i < 4; i++) fanFace(bx + 160 + i * 313, by + 76, 64, ang * (i % 2 ? -1 : 1) + i, blur, { led: i % 2 ? PAL.nCyan : PAL.nGreen });
     // glass bays with racks
-    const cols = 5, rows = 3, gw = 250, gh = 170, gx0 = bx + 60, gy0 = by + 205;
+    const cols = 5, rows = 3, gw = 220, gh = 145, gx0 = bx + 40, gy0 = by + 152;
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-      const x = gx0 + c * (gw + 21), y = gy0 + r * (gh + 22), id = r * 5 + c;
+      const x = gx0 + c * (gw + 20), y = gy0 + r * (gh + 16), id = r * 5 + c;
       const on = clamp(since(t, 145 + (rows - 1 - r)) * 5), lit = .25 + .75 * on;
       const g = X.createLinearGradient(0, y, 0, y + gh); g.addColorStop(0, mixCol('#0A1A2E', '#1070A0', on)); g.addColorStop(1, mixCol('#070C1C', '#0A2040', on)); X.fillStyle = g; X.fillRect(x, y, gw, gh);
       glow(x + gw / 2, y + 20, gw * .6, PAL.nCyan, (.1 + .18 * on) + .12 * pulse(t, 4) * on);
-      for (let k = 0; k < 4; k++) rackMini(x + 14 + k * 58, y + 22, 50, gh - 30, t, id * 5 + k, lit * (.7 + .3 * pulse(t, 5)));
+      for (let k = 0; k < 4; k++) rackMini(x + 12 + k * 51, y + 18, 44, gh - 26, t, id * 5 + k, lit * (.7 + .3 * pulse(t, 5)));
       if (on > 0 && on < 1) { X.fillStyle = rgba('#BFFFFF', .5 * (1 - on)); X.fillRect(x, y, gw, gh); }
       X.save(); X.globalCompositeOperation = 'lighter'; X.fillStyle = 'rgba(190,240,255,.07)'; X.beginPath(); X.moveTo(x + 40, y); X.lineTo(x + 110, y); X.lineTo(x + 30, y + gh); X.lineTo(x - 40, y + gh); X.fill(); X.restore();
       paint(rectPts(x, y, gw, gh), { ink: PAL.line, sw: 3 });
     }
-    // signage
-    signBoard(bx + bw / 2, by + 10, 440, 80, 'COMPUTE', PAL.nCyan, { size: 50 });
-    { const x = bx + bw + 10, y = by + 150; X.fillStyle = '#0A0614'; X.fillRect(x, y, 80, 330); neonLine(rectPts(x, y, 80, 330), PAL.nGreen, 3, 1, 0, true); ['G', 'P', 'U'].forEach((ch, j) => ntxt(ch, x + 40, y + 60 + j * 100, 66, PAL.nGreen)); }
+    // v2 signage. The roof billboard on a truss:
+    { const y0 = 186; X.strokeStyle = PAL.line; X.lineWidth = 9; X.beginPath(); for (let i = 0; i < 6; i++) { const x = 520 + i * 176; X.moveTo(x, y0 - 10); X.lineTo(x, by + 4); if (i < 5) { X.moveTo(x, y0 - 6); X.lineTo(x + 176, by); } } X.stroke(); X.strokeStyle = '#3A2E5A'; X.lineWidth = 4; X.stroke(); }
+    neonPanel(960, 118, 1000, 126, ['COMPUTE IS THE NEW OIL'], { col: PAL.nYellow, frame: PAL.nOrange, t, seed: 91, rim: '#8A7ACA',
+      icon: (cx, cy, s, on) => {   // a neon oil drop with a chip in it
+        const d = []; for (let i = 0; i < 28; i++) { const a = i / 28 * TAU; d.push([cx + s * .5 * Math.sin(a) * Math.sin(a / 2), cy + s * .1 - s * .62 * Math.cos(a)]); }
+        paint(d, { fill: '#1A1206', ink: null, curv: .4 }); neonLine(d, PAL.nOrange, 3.5, on, .4, true);
+        paint(rrPts(cx - s * .17, cy + s * .08, s * .34, s * .3, 3), { fill: '#0B0716', ink: null }); neonLine(rrPts(cx - s * .17, cy + s * .08, s * .34, s * .3, 3), PAL.nGreen, 2, on, 0, true);
+        for (let j = 0; j < 3; j++) for (const sd of [-1, 1]) line([[cx + sd * s * .17, cy + s * (.14 + j * .09)], [cx + sd * s * .25, cy + s * (.14 + j * .09)]], 1.5, PAL.nGreen, 0, on);
+      } });
+    // NO MOAT, on a pole by the kerb
+    line([[175, 590], [175, 850]], 7, '#2A2046', 0); line([[150, 850], [200, 850]], 6, '#2A2046', 0);
+    neonPanel(175, 505, 236, 178, [{ s: 'NO', k: .72 }, 'MOAT'], { col: PAL.nMagenta, frame: PAL.nCyan, t, seed: 93, rim: '#8A6ACA' });
+    // AGI 20xx: the year ticks down each beat (timelines), lands on 2027
+    { const yr = ['2035', '2030', '2027'][clamp(Math.floor(bpOf(t)) - 144, 0, 2)], hitK = Math.exp(-Math.max(0, since(t, 144 + ['2035', '2030', '2027'].indexOf(yr))) * 7);
+      line([[1775, 390], [1775, 850]], 7, '#2A2046', 0);
+      neonPanel(1775, 300, 212, 176, [{ s: 'AGI', k: .62, font: 'Orbitron', col: PAL.nOrange }, { s: yr, font: 'Orbitron', col: yr === '2027' ? PAL.nRed : PAL.nOrange }], { col: PAL.nOrange, frame: PAL.nRed, t, seed: 97, panel: '#240812' });
+      if (hitK > .05) glow(1775, 320, 200, PAL.nRed, .5 * hitK); }
+    { const x = bx + bw + 14, y = by + 190; X.fillStyle = '#0A0614'; X.fillRect(x, y, 70, 290); neonLine(rectPts(x, y, 70, 290), PAL.nGreen, 3, 1, 0, true); ['G', 'P', 'U'].forEach((ch, j) => ntxt(ch, x + 35, y + 52 + j * 90, 58, PAL.nGreen)); }
     // street + reflections
     X.fillStyle = '#0A0618'; X.fillRect(-100, 830, W + 200, 20);
-    const refls = []; for (let c = 0; c < cols; c++) refls.push({ x: gx0 + c * 271 + 40, w: 170, col: PAL.nCyan, a: .2, len: 300 });
-    refls.push({ x: bx + bw / 2 - 150, w: 300, col: PAL.nCyan, a: .12, len: 200 });
+    const refls = []; for (let c = 0; c < cols; c++) refls.push({ x: gx0 + c * 240 + 30, w: 160, col: PAL.nCyan, a: .2, len: 300 });
+    refls.push({ x: 80, w: 190, col: PAL.nMagenta, a: .25, len: 260 }, { x: 1680, w: 190, col: PAL.nOrange, a: .22, len: 260 });
     wetFloor(t, 850, refls, { nSplash: 30 });
     // steam vents puff on each beat
-    for (const [vx, n0] of [[330, 144], [1600, 145], [520, 146], [1400, 147]]) {
+    for (const [vx, n0] of [[420, 144], [1500, 145], [620, 146], [1300, 147]]) {
       paint(rrPts(vx - 50, 868, 100, 22, 6), { fill: '#241A3A', ink: PAL.line, sw: 2 });
       for (let k = 0; k < 2; k++) steam(vx, 860, 150, clamp(since(t, n0 + k * 4) / 1.1), .9, '#E8DEFF');
       steam(vx, 860, 80, frac(t * .7 + vx), .35, '#D8C8FF');
     }
-    // roof exhaust plumes
-    for (let i = 0; i < 4; i++) for (let k = 0; k < 2; k++) steam(bx + 205 + i * 337, by + 10, 100 + nb * 25, frac(t * (.6 + nb * .2) + i * .3 + k * .5), .35 + nb * .12, '#C8B8F0');
     // the hero, small, looking up at it
     hero(820, 1030, 430, { view: 'back', emblem: .6 + .4 * pulse(t, 4), tilt: Math.sin(t * 1.3) * .05, dy: -3 * pulse(t, 6), hairWind: .3, aL: [.15, .2], aR: [.15, .2] });
     camEnd();
@@ -480,7 +581,9 @@
   }
 
   // 3 · b152–156: the stochastic parrot squawks it back, token by token.
-  const PARROT_TOK = ['squawk!', 'as', 'a', 'large', 'language', 'model—'];
+  // v2: 'squawk!' then the line streams out token by token on sixteenths, each token in its own tokenizer highlight
+  const PARROT_TOK = ['squawk!', "it's", ' just', ' a', ' next', '-token', '\n', 'predict', 'or—'];
+  const TOK_COLS = ['#FF9CC6', '#86E6FF', '#FFE45C', '#A6F58E', '#CDB0FF', '#FFBE7A'];
   function parrotGag(t, lt, dur) {
     style(1); FX.letterbox = .35;
     const p = easeOut(lt / dur);
@@ -494,7 +597,7 @@
     X.fillStyle = '#120A26'; X.fillRect(1560, -100, 600, 1300);
     X.fillStyle = '#3A2F5A'; X.fillRect(1500, 680, 120, 14);
     // tokens stream out on the eighths; the beak snaps on each
-    const tk = PARROT_TOK.map((_, i) => B(152.5 + i * .5)), nT = tk.filter(x => t >= x).length, lastT = nT ? t - tk[nT - 1] : 1;
+    const tk = PARROT_TOK.map((_, i) => B(i ? 152.75 + i * .25 : 152.5)), nT = tk.filter(x => t >= x).length, lastT = nT ? t - tk[nT - 1] : 1;
     const beak = nT ? Math.exp(-lastT * 12) : 0, flap = Math.max(0, Math.sin(clamp(since(t, 153) * 3) * Math.PI));
     const po = { beak, flap: flap * .8 + beak * .15, bob: -beak * 3, tilt: -beak * .12 + Math.sin(t * 5) * .03, flip: true };
     const px = 1420, py = 690, ps = 6.1;
@@ -507,13 +610,18 @@
     // speech bubble with the typed line
     const bk = clamp(since(t, 152.35) * 5);
     if (bk > 0) {
-      bubble(110, 80, 1010, 270, 1235, 405, bk);
+      bubble(70, 88, 900, 318, 1226, 300, bk);
       if (bk > .6) {
-        const words = PARROT_TOK.slice(0, nT);
-        txt(words[0] || '', 170, 158, 88, PAL.nMagenta, { font: 'Shantell', align: 'left', stroke: '#0B0716', sw: 5 });
-        const rest = words.slice(1).join(' ');
-        if (rest) txt(rest, 172, 276, 60, '#1A1030', { font: 'Shantell', align: 'left' });
-        if (Math.floor(t * 6) % 2 && nT < PARROT_TOK.length) { const w1 = rest ? txtW(rest, 60, 'Shantell') : 0; X.fillStyle = '#1A1030'; X.fillRect(178 + w1 + (rest ? 8 : -6), rest ? 244 : 124, 8, 60); }
+        if (nT) txt('squawk!', 130, 156, 80, PAL.nMagenta, { font: 'Shantell', align: 'left', stroke: '#0B0716', sw: 5 });
+        let x = 136, y = 254, ci = 0; const fs = 60;
+        for (let i = 1; i < nT; i++) {
+          const tok = PARROT_TOK[i]; if (tok === '\n') { x = 136; y += 88; continue; }
+          const w = txtW(tok, fs, 'Shantell'), pk = clamp((t - tk[i]) * 14);
+          paint(rrPts(x - 3, y - 36, w + 6, 72, 10), { fill: TOK_COLS[ci++ % TOK_COLS.length], ink: null, alpha: .8 * pk });
+          txt(tok, x, y + 2, fs, '#1A1030', { font: 'Shantell', align: 'left', alpha: pk });
+          x += w + 6;
+        }
+        if (Math.floor(t * 6) % 2 && nT < PARROT_TOK.length) { X.fillStyle = '#1A1030'; X.fillRect(x + 2, (nT > 1 ? y : 156) - 30, 8, 60); }
       }
     }
     camEnd();
@@ -529,6 +637,17 @@
     vgrad(-100, -100, W + 200, H + 200, [[0, '#0B0620'], [1, '#1C0C34']]);
     X.fillStyle = '#170D30'; for (let r = 0; r < 24; r++) for (let c = 0; c < 16; c++) if (hash(r * 31 + c) < .8) X.fillRect(c * 130 + (r % 2) * 65 - 60, r * 48 - 60, 122, 40);
     glow(960, 520, 900, '#FF2E5A', .22);
+    // v2: a cheap alley sign hanging crooked off one chain, one tube dying
+    {
+      const sw = Math.sin(t * 2.3) * .025;
+      line([[140, -60], [160, 205]], 3, '#5A4A7A', 0); line([[330, -60], [318, 150]], 3, '#5A4A7A', .2);
+      X.save(); X.translate(160, 205); X.rotate(-.16 + sw);
+      neonPanel(125, 105, 270, 200, ['GPU', { s: 'POOR', dead: 2 }], { col: PAL.nCyan, frame: PAL.nGreen, t, seed: 61, flickP: .12, panel: '#0C1A24', rim: '#4A6A8A' });
+      X.restore();
+      // arrow down the alley
+      const ab = .6 + .4 * (Math.floor(t * 4) % 2);
+      neonLine([[150, 520], [150, 640], [118, 606], [150, 640], [182, 606]], PAL.nGreen, 5, ab, 0);
+    }
     // machine
     const mx = 470, my = 30, mw = 980, mh = 1120;
     paint(rrPts(mx, my, mw, mh, 34), { fill: '#E23A6A', shade: '#8A1040', rim: '#FFB0C8', ink: PAL.line, sw: 3.5, light: [-.04, -.03] });
@@ -616,7 +735,7 @@
     for (let i = 0; i < 8; i++) { const a = hash(i + Math.floor(t * 20)) * TAU, r = 20 + hash(i * 3 + Math.floor(t * 20)) * 60; neonLine([tip, [tip[0] + Math.cos(a) * r, tip[1] + Math.sin(a) * r]], PAL.nYellow, 2, .8, 0); }
     glow(tip[0], tip[1], 90, PAL.nCyan, .6);
     // battery over the room, refilling a step per beat
-    battery(1320, 470, 1.6, bv, { label: 'MENTAL EQUITY' });
+    battery(1320, 470, 1.6, bv);
     // the window: glare, neon script on the glass, rain drips
     X.save(); X.globalCompositeOperation = 'lighter'; X.fillStyle = 'rgba(170,220,255,.06)'; for (const sx of [300, 1000, 1500]) { X.beginPath(); X.moveTo(sx, wy); X.lineTo(sx + 200, wy); X.lineTo(sx - 60, wy + wh); X.lineTo(sx - 260, wy + wh); X.fill(); } X.restore();
     X.strokeStyle = 'rgba(200,240,255,.35)'; X.lineWidth = 2.5;
@@ -657,7 +776,7 @@
     // HUD: battery refilling per beat, then full
     const n = clamp(Math.floor(b) - 164, 0, 3), bv = on ? 1 : [.45, .7][n] ?? .7;
     hud(90, 110, 520, 220, { col: on ? PAL.nGreen : PAL.nCyan });
-    battery(160, 210, 2.2, Math.min(1, bv + .1 * clamp(since(t, 164 + n) * 3)), { label: 'MENTAL EQUITY' });
+    battery(160, 210, 2.2, Math.min(1, bv + .1 * clamp(since(t, 164 + n) * 3)));
     if (on) glow(ex - 40, ey + 60, 160, PAL.nCyan, .35 + .2 * pulse(t, 4));
     if (on) FX.flash = Math.max(FX.flash, .5 * Math.exp(-since(t, 166) * 8));
   }
@@ -695,6 +814,16 @@
     FX.letterbox = .35;
   }
 
+  // v2: the reasoning-model wait. "Thinking" with a shimmer sweeping across it, and three pulsing dots (the …)
+  function thinking(x, y, size, t, o = {}) {
+    const A = o.alpha ?? 1, f = 'Rajdhani', w = txtW('Thinking', size, f), x0 = x - (w + size * .62) / 2, col = o.col || '#9FF7FF';
+    if (o.pill) { const pw = w + size * 1.2, ph = size * 1.35; paint(rrPts(x - pw / 2, y - ph / 2, pw, ph, ph / 2), { fill: 'rgba(6,24,40,.72)', ink: null, alpha: A }); neonLine(rrPts(x - pw / 2, y - ph / 2, pw, ph, ph / 2), PAL.nCyan, Math.max(1, size / 22), .8 * A, 0, true); }
+    const sx = x0 - size + frac(t * .9 + (o.seed || 0) * .37) * (w + size * 2);
+    let cx = x0;
+    for (const ch of 'Thinking') { const cw = txtW(ch, size, f), k = Math.exp(-Math.pow((cx + cw / 2 - sx) / (size * .9), 2)); txt(ch, cx, y, size, mixCol(mixCol(col, '#1A4A6A', .45), '#FFFFFF', k), { font: f, align: 'left', alpha: A }); cx += cw; }
+    for (let i = 0; i < 3; i++) { const k = .35 + .65 * Math.max(0, Math.sin((t * 2.2 - i * .18) * TAU)); X.fillStyle = col; X.globalAlpha = A * k; X.beginPath(); X.arc(x0 + w + size * (.12 + i * .2), y + size * .24, size * .065, 0, TAU); X.fill(); }
+    X.globalAlpha = 1;
+  }
   // a cheap seated-passenger silhouette (head bowed over a phone) for windows
   function bust(x, y, s, col, fl) {
     X.fillStyle = col; X.beginPath(); X.moveTo(x - 38 * s, y); X.quadraticCurveTo(x - 36 * s, y - 62 * s, x, y - 64 * s); X.quadraticCurveTo(x + 36 * s, y - 62 * s, x + 38 * s, y); X.fill();
@@ -736,6 +865,11 @@
       X.fillStyle = '#123A5A'; X.fillRect(phx - 21, phy - 38, 42, 76);
       mask(phx, phy - 14, 13, { eyes: 'open', mouth: 'smile', glow: .6 });
       for (let e = 0; e < 3; e++) emdash(phx - 10 + e * 10, phy + 14 + e * 7, .28, Math.sin(t * 4 + e) * .3, { face: false });
+      // the same AR pop-up floats over every phone: everyone is waiting on the model
+      const bob = Math.sin(t * 3 + px) * 6;
+      const qx = phx + (px < 960 ? 22 : -22);
+      line([[phx, phy - 48], [qx, phy - 118 + bob]], 1.5, rgba(PAL.nCyan, .5), 0);
+      thinking(qx, phy - 150 + bob, 38, t, { pill: true, seed: px });
     }
     { const k = frac(bpOf(t)), x = lerp(-600, W + 200, k); X.save(); X.globalCompositeOperation = 'lighter'; const g = X.createLinearGradient(x, 0, x + 400, 0); g.addColorStop(0, 'rgba(255,200,240,0)'); g.addColorStop(.5, 'rgba(255,200,240,.10)'); g.addColorStop(1, 'rgba(255,200,240,0)'); X.fillStyle = g; X.beginPath(); X.moveTo(x, -50); X.lineTo(x + 400, -50); X.lineTo(x + 250, H + 50); X.lineTo(x - 150, H + 50); X.fill(); X.restore(); }
     // him: standing at the middle window, hand on the glass, watching the moon keep pace
@@ -751,7 +885,8 @@
     glow(960, 540, 700, PAL.nCyan, .3);
     paint(rrPts(700, 60, 520, 980, 60), { fill: '#0B0716', shade: '#05030A', ink: '#8A86A8', sw: 3, rim: '#5A5A7A' });
     X.fillStyle = '#0E2A44'; X.fillRect(730, 120, 460, 860);
-    mask(960, 420, 150, { eyes: 'happy', mouth: 'grin', glow: .8 });
+    mask(960, 380, 140, { eyes: 'happy', mouth: 'grin', glow: .8 });
+    thinking(960, 640, 76, t, { seed: 3 });
     for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + .3, r = 200 + 380 * k * (.7 + hash(i) * .5); emdash(960 + Math.cos(a) * r * 1.1, 560 + Math.sin(a) * r * .8, 2.4, a + Math.sin(t * 6 + i) * .35, { seed: i }); }
     // his thumb
     paint(capsule(1350, 1200, 1130, 820, 90, 70), { fill: HERO.skinN, shade: HERO.skinNDk, ink: PAL.line, sw: 3 });
@@ -962,35 +1097,46 @@
   }
 
   // 9 · b192–200: break. The moon turns and it IS the mask; tentacles rise behind the skyline; 3 · 2 · 1 · white.
-  // the moon's face features painted on the sphere (squashed by c as it rotates into view); o like mask()
-  function moonFace(x, y, r, c, o = {}) {
-    X.save(); X.translate(x, y); X.scale(Math.max(.02, c), 1);
-    const inkC = PAL.line, sw = r / 24, E = o.eyes || 'open';
-    for (const s of [-1, 1]) {
-      const cx = s * r * .34, cy = -r * .18;
-      paint(ellPts(s * r * .56, r * .16, r * .15, r * .08, 12), { fill: PAL.rose, op: .6, ink: null, flat: true });
-      if (E === 'closed' || E === 'happy') { line([[cx - r * .13, cy + r * .04], [cx, cy - (E === 'happy' ? r * .09 : -r * .03)], [cx + r * .13, cy + r * .04]], sw, inkC, .6); continue; }
-      paint(ellPts(cx, cy, r * .09, r * .16, 16), { fill: o.eyeGlow ? PAL.nCyan : inkC, ink: null, flat: true });
-      paint(ellPts(cx - r * .03, cy - r * .07, r * .03, r * .04, 8), { fill: '#FFFFFF', ink: null, flat: true });
-      if (o.eyeGlow) glow(cx, cy, r * .4, PAL.nCyan, .6);
+  // v2: the face is the real mask() (his pale-yellow lopsided mask, dash eyes, lopsided smile). It rides in on the sphere,
+  // foreshortened, while the craters roll off the other limb; then the round silhouette morphs into the mask's outline.
+  let _maskPolar = null;
+  function maskPolar(a) {   // radius of the mask outline (r = 1) along angle a, from its centre
+    if (!_maskPolar) {
+      const P = maskShape(1), N = 96; _maskPolar = [];
+      for (let i = 0; i < N; i++) {
+        const an = i / N * TAU, dx = Math.cos(an), dy = Math.sin(an); let best = 1;
+        for (let j = 0; j < P.length; j++) {
+          const [px, py] = P[j], [qx, qy] = P[(j + 1) % P.length], ex = qx - px, ey = qy - py, den = dx * ey - dy * ex; if (Math.abs(den) < 1e-9) continue;
+          const tt = (px * ey - py * ex) / den, u = (px * dy - py * dx) / den; if (tt > 0 && u >= 0 && u <= 1) { best = tt; break; }
+        }
+        _maskPolar.push(best);
+      }
     }
-    const w = r * .52, my = r * .22, pts = [[-w, my - r * .06], [-w * .55, my + r * .3], [0, my + r * .4], [w * .55, my + r * .3], [w, my - r * .06]];
-    if (o.mouth === 'grin') paint([...pts, [0, my + r * .02]], { fill: '#5A1A2A', ink: inkC, sw: sw * .7, curv: .6 });
-    else line(pts, sw, inkC, .6);
-    X.restore();
+    const f = ((a / TAU) % 1 + 1) % 1 * _maskPolar.length, i = Math.floor(f), k = f - i;
+    return lerp(_maskPolar[i % _maskPolar.length], _maskPolar[(i + 1) % _maskPolar.length], k);
   }
-  // the moon rotating: craters roll off one limb, the smiley face rolls in from the other (k 0 → 1)
-  function moonTurn(x, y, r, k, o = {}) {
-    const col = mixCol('#FFF4D8', PAL.mask, k * .9), sh = mixCol('#E2C48A', PAL.maskDk, k * .9);
-    glow(x, y, r * 3, mixCol('#FFE9A8', PAL.nYellow, k), .3 + .1 * k); glow(x, y, r * 1.6, '#FFFFFF', .2);
-    paint(ellPts(x, y, r, r, 48), { fill: col, shade: sh, light: [-.14, -.1], ink: k > .5 ? PAL.line : null, sw: r / 40 * clamp(k * 2 - 1), rim: '#FFFFFF' });
-    X.save(); tracePath(X, ellPts(x, y, r * .995, r * .995, 48)); X.clip();
+  SHARED.maskPolar = maskPolar;
+  function moonTurn(x, y, R, k, o = {}) {
+    const rm = R * .9, m = easeInOut(seg(k, .55, 1)), cc = seg(k, .3, .95);
+    const col = mixCol('#FFF4D8', MOD.maskCol, cc), sh = mixCol('#E2C48A', MOD.maskDk, cc);
+    const sil = []; for (let i = 0; i < 72; i++) { const an = i / 72 * TAU, rr = lerp(R, rm * maskPolar(an), m); sil.push([x + Math.cos(an) * rr, y + Math.sin(an) * rr]); }
+    glow(x, y, R * 3, mixCol('#FFE9A8', PAL.nYellow, k), .3 + .1 * k); glow(x, y, R * 1.6, '#FFFFFF', .2);
+    paint(sil, { fill: col, shade: sh, light: [-.14, -.1], ink: k > .4 ? PAL.line : null, sw: R / 40 * clamp(k * 2.5 - 1), rim: '#FFFFFF', curv: .3 });
+    X.save(); tracePath(X, sil, .3); X.clip();
     const rot = k * Math.PI * .75;
     const cr = [[-.7, -.3, .2], [.3, .1, .16], [-.1, .45, .12], [.55, -.5, .1], [-.9, .25, .09], [1.1, -.1, .14], [.9, .4, .1], [1.5, .2, .18], [2.0, -.3, .12]];
-    for (const [lon, lat, cs] of cr) { const L = lon + rot, c = Math.cos(L); if (c <= .02) continue; paint(ellPts(x + Math.sin(L) * Math.cos(lat) * r, y + Math.sin(lat) * r, cs * r * c, cs * r * .9, 16), { fill: mixCol('#E6D2A4', PAL.maskDk, k * .6), ink: null, alpha: .85 * (1 - k * .7) }); }
+    for (const [lon, lat, cs] of cr) { const L = lon + rot, c = Math.cos(L); if (c <= .02) continue; paint(ellPts(x + Math.sin(L) * Math.cos(lat) * R, y + Math.sin(lat) * R, cs * R * c, cs * R * .9, 16), { fill: mixCol('#E6D2A4', MOD.maskDk, cc * .6), ink: null, alpha: .85 * (1 - k * .85) }); }
     const phi = -Math.PI * .75 + rot, c = Math.cos(phi);
-    if (c > .02) moonFace(x + Math.sin(phi) * r * .9, y, r, c, o);
+    // the face is painted on the sphere: clip the decal inside its own outline (only the final silhouette gets inked)
+    if (c > .03) { X.save(); X.translate(x + Math.sin(phi) * R * .88, y); X.scale(c, 1); tracePath(X, maskShape(rm * lerp(.93, 1.05, m)), .2); X.clip(); mask(0, 0, rm, { ...o, col, glow: 0, tilt3d: 0 }); X.restore(); }
     X.restore();
+  }
+  // dark tentacles rising behind the skyline: the shared tentacle() in silhouette colours (its little eyes stay pale)
+  function darkTentacles(t, tk, o = {}) {
+    for (let i = 0; i < 8; i++) {
+      const sd = i % 2 ? 1 : -1, j = Math.floor(i / 2), x0 = 960 + sd * (330 + j * 150), a = -Math.PI / 2 - sd * (.12 + j * .16 + hash(i) * .15);
+      tentacle(x0, 980, a, (420 + j * 90 + hash(i * 3) * 160) * tk + 60, 64 - j * 8, t * .7, i * 3 + 1, { col: '#120A24', dk: '#07040F', rim: '#6A2A8A', curl: 1.4, amp: .5, eyes: o.eyes ?? true });
+    }
   }
   function moonMask(t, lt, dur) {
     style(1);
@@ -1000,13 +1146,17 @@
     vgrad(-300, -300, W + 600, H + 600, [[0, '#04020A'], [.4, '#150A30'], [.62, '#3A1250'], [.72, '#7A1E5E'], [.8, '#2A0E3A'], [1, '#0A0616']]);
     stars(t, 90, { ext: [W, 600], seed: 23 });
     const mx = 960, my = 380, mr = 290;
-    moonTurn(mx, my, mr, k, { eyes: b >= 198 ? 'open' : b >= 197 ? 'happy' : 'closed', mouth: b >= 197 ? 'grin' : 'smile', eyeGlow: b >= 198 });
-    // tentacle silhouettes rising behind the skyline, framing the moon
-    const tk = easeOut(seg(b, 192.8, 198.5));
-    for (let i = 0; i < 8; i++) {
-      const sd = i % 2 ? 1 : -1, j = Math.floor(i / 2), x0 = 960 + sd * (330 + j * 150), a = -Math.PI / 2 - sd * (.12 + j * .16 + hash(i) * .15);
-      tentacle(x0, 980, a, (420 + j * 90 + hash(i * 3) * 160) * tk + 60, 64 - j * 8, t * .7, i * 3 + 1, { col: '#0A0414', dk: '#050208', rim: '#4A1460', neon: false, curl: 1.4, amp: .5 });
+    const mood = b >= 198 ? { eyes: 'open', mouth: 'grin', eyeGlow: true } : b >= 197 ? { eyes: 'happy', mouth: 'grin' } : b >= 196 ? { eyes: 'closed', mouth: 'smile' } : { eyes: 'closed', mouth: 'smile' };
+    const look = [-.35, .45], crack = seg(b, 198.45, 198.95);
+    if (k < 1) moonTurn(mx, my, mr, k, { ...mood, look });
+    else {
+      glow(mx, my, mr * 3, PAL.nYellow, .4); glow(mx, my, mr * 1.6, '#FFFFFF', .2);
+      const hop = cd ? Math.exp(-since(t, 195 + cd) * 9) : 0;
+      mask(mx, my - hop * 12, mr * .9 * (1 + .03 * hop), { ...mood, look, col: MOD.maskCol, glow: .9, crack, rot: Math.sin(t * 2) * .02 });
+      if (crack > 0) glow(mx + mr * .05, my - mr * .4, mr * .6 * crack, PAL.nMagenta, .5 * crack);
     }
+    // tentacle silhouettes rising behind the skyline, framing the moon
+    darkTentacles(t, easeOut(seg(b, 192.8, 198.5)));
     // skyline, windows mostly dark (the silence)
     cityX(t, { horizon: 1010, scroll: 300, street: false, seed: 31, lit: .35, signs: 0, tall: .72 });
     X.fillStyle = 'rgba(8,4,18,.4)'; X.fillRect(-300, 760, W + 600, 700);
@@ -1015,7 +1165,7 @@
     neonLine([[-300, 906], [620, 906]], PAL.nViolet, 2, .6, 0);
     hero(430, 908, 280, { view: 'back', emblem: .5 + .5 * k, tilt: -.05, hairWind: .3 });
     camEnd();
-    if (cd) { const n = 196 + cd - 1; cap(String(4 - cd), 960, 860, 300, '#FFFFFF', { font: 'Anton', stroke: '#000', sw: 28, pop: since(t, n) * 7 }); FX.zoom *= 1 + .05 * Math.exp(-since(t, n) * 8); FX.shake += 10 * Math.exp(-since(t, n) * 8); }
+    if (cd) { const n = 196 + cd - 1; cap(String(4 - cd), 1530, 600, 330, cd === 3 ? PAL.nYellow : '#FFFFFF', { font: 'Anton', stroke: '#000', sw: 30, pop: since(t, n) * 7, rot: cd % 2 ? .08 : -.06 }); FX.zoom *= 1 + .05 * Math.exp(-since(t, n) * 8); FX.shake += 10 * Math.exp(-since(t, n) * 8); }
     if (b >= 199) { FX.flash = Math.max(FX.flash, 1 - since(t, 199) * .9); FX.flashCol = '#FFFFFF'; }
     FX.letterbox = .6 - .6 * seg(b, 198, 199);
   }

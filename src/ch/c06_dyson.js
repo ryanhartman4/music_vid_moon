@@ -161,11 +161,26 @@
   }
   // a server rack seen head-on; (x, y) = bottom-left
   function pod(x, y, w, h, o = {}) {
-    const on = o.on ?? 1, t = o.t ?? T, sd = o.seed || 0;
+    const on = o.on ?? 1, t = o.t ?? T, sd = o.seed || 0, gk = o.genius || 0;
     paint(rectPts(x, y - h, w, h), { fill: '#221A40', shade: '#0E0A1C', rim: o.rim || G.rimG, light: [o.lx ?? -.14, -.08], ink: PAL.line, sw: clamp(w / 70, .5, 2) });
-    const rows = clamp(Math.floor(h / (w * .3)), 2, 12), rh = (h - w * .16) / rows;
+    // a lit window near the top with one of the geniuses inside (a tiny Assistant, walking or waving)
+    let top = y - h;
+    if (gk > 0) {
+      const wx = x + w * .1, wy = y - h + w * .1, ww = w * .8, wh = h * .36, lit = clamp(on * 1.4);
+      paint(rectPts(wx, wy, ww, wh), { fill: mixCol('#0A0716', '#0D3A4A', lit), ink: PAL.line, sw: clamp(w / 90, .5, 1.6), flat: true });
+      X.save(); X.beginPath(); X.rect(wx, wy, ww, wh); X.clip();
+      glow(wx + ww / 2, wy + wh * .75, ww * .8, PAL.nCyan, .3 * lit);
+      X.fillStyle = PAL.nCyan; X.globalAlpha = .6 * lit; X.fillRect(wx, wy + wh - 2, ww, 2); X.globalAlpha = 1;
+      if (lit > .05) {
+        const ph = hash(sd * 3.7), waving = ph < .45, ah = wh * .82, walkX = waving ? 0 : Math.sin(t * 1.3 + ph * 9) * ww * .22;
+        assistant(wx + ww / 2 + walkX, wy + wh - 1.5, ah, { walk: waving ? null : t * 1.6 + ph * 5, wave: waving ? .9 : 0, flip: !waving && Math.cos(t * 1.3 + ph * 9) < 0, alpha: lit * gk, glowK: .3, mood: { eyes: waving ? 'happy' : 'open' } });
+      }
+      X.restore();
+      top = wy + wh + w * .02;
+    }
+    const rows = clamp(Math.floor((y - top) / (w * .3)), 2, 12), rh = (y - top - w * .08) / rows;
     for (let r = 0; r < rows; r++) {
-      const yy = y - h + w * .08 + r * rh;
+      const yy = top + (gk > 0 ? 0 : w * .08) + r * rh;
       X.fillStyle = '#06040E'; X.fillRect(x + w * .1, yy + rh * .14, w * .8, rh * .72);
       if (w > 12) for (let j = 0; j < 4; j++) { const lit = on > 0 && hash(sd * 13.7 + r * 7 + j * 3 + Math.floor(t * 7 + r + sd)) < .7 * on; X.fillStyle = lit ? (j === 0 ? PAL.nGreen : PAL.nCyan) : '#1E2233'; X.fillRect(x + w * (.16 + j * .13), yy + rh * .38, w * .08, rh * .26); }
     }
@@ -282,41 +297,38 @@
   // b336–344 · THE SHOGGOTH UNFURLS from the rocket's nose; it flings panels at the sun (8 beats)
   // ======================================================================================
   const U_SUN = [-150, -470];
+  // where one of the shoggoth's own limbs is (mirrors model.js's limb sway), for launching things off its tips
+  function limbTip(x, y, s, o, li, tip) {
+    const k = s / SHOG.R, tt = (o.t ?? T) * 1.7 + (o.seed || 0) * 2.3, wig = o.wiggle ?? 2, rs = .82 + .36 * (o.reach ?? .6), breathe = -4 * (1 - Math.cos(TAU * tt / 7)) / 2;
+    const L = SHOG.limbs[li], a = (L.sw * wig) * -Math.cos(Math.PI * tt / L.d) * Math.PI / 180, dx = (tip[0] - L.o[0]) * rs, dy = (tip[1] - L.o[1]) * rs;
+    return [x + (L.o[0] + dx * Math.cos(a) - dy * Math.sin(a) - SHOG.c[0]) * k, y + (L.o[1] + dx * Math.sin(a) + dy * Math.cos(a) - SHOG.c[1] + breathe) * k];
+  }
+  const TIPS = [[0, [175, 32]], [2, [60, 280]]];   // its big crooked upper-left arm, and its long left arm
   function unfurl(t, lt, dur) {
     style(1);
-    const b = lt / BT, ta = onTwos(t), uu = lt / dur, mv = easeInOut(clamp((lt - .05) / (BT * 3.4)));
+    const b = lt / BT, uu = lt / dur, mv = easeInOut(clamp((lt - .05) / (BT * 3.4)));
     const z = lerp(.9, .58, mv) * (1 - .03 * uu), cy = lerp(640, 150, mv), cx = lerp(900, 900, mv);
     space(t, { sy: (610 - cy) * .12, n: 150 });
     camBegin(cx, cy, z);
     sun(U_SUN[0], U_SUN[1], 110, 1, { t });
     ground(t, { hz: 900, seed: 7, craters: 11, focal: 460, cscale: 1.3, x0: -2200, x1: 4000 });
     const RXu = 830, RGu = 1010, rs = .7, top = RGu - 100 * rs - 553 * rs;
-    const g = lt < .04 ? 0 : backOut(clamp((lt - .04) / (BT * 1.9))), S = 330 * g, gt = expoOut(clamp((lt - .02) / .35));
-    const bx = RXu + 10, by = lerp(top + 40, top - 310, easeOut(clamp(lt / (BT * 2.2))));
-    // skyward tentacles behind the body
-    // (Ryan's shoggoth: its own crooked limbs unfurl via reach)
-    // two thrower tentacles aimed at the sun: cock back before each beat, snap on it (b340–343)
-    const tb = j => [bx - S * .7, by - S * (.35 - j * .3)], aimOf = j => Math.atan2(U_SUN[1] - tb(j)[1], U_SUN[0] - tb(j)[0]);
-    if (S > 4) for (let j = 0; j < 2; j++) {
-      const aim = aimOf(j), rest = aim + .7 - j * .25;
-      let ang = rest;
-      for (let m = 4 + j; m < 8; m += 2) { const d = b - m; if (d > -.5 && d < 0) ang = lerp(rest, aim + 1.5, easeInOut((d + .5) / .5)); else if (d >= 0 && d < 1.5) ang = lerp(aim - .15, rest, easeInOut(clamp((d - .1) / 1.3))); }
-      tentacle(tb(j)[0], tb(j)[1], ang, S * 1.9, S * .2, ta, 50 + j, { rim: MOD.rim2N, curl: .12, amp: .12 });
-    }
+    // the shoggoth grows out of the rocket's nose; its limbs unfurl (reach) and jerk on every beat as it throws
+    const shog = tt => { const l2 = tt - bt(336), g = l2 < .04 ? 0 : backOut(clamp((l2 - .04) / (BT * 1.9))), gt = expoOut(clamp((l2 - .02) / .35));
+      return { x: RXu + 10, y: lerp(top + 40, top - 310, easeOut(clamp(l2 / (BT * 2.2)))), S: 330 * g, o: { reach: .4 + .6 * gt, wiggle: 2.5 + 2.2 * pulse(tt, 5), t: onTwos(tt), seed: 2 } }; };
+    const cur = shog(t), S = cur.S;
     // the nose cone pops off on the cut and tumbles away (behind the body)
     if (lt < 1.6) { const nx = RXu + 620 * lt, ny = top - 1700 * lt + 520 * lt * lt; X.save(); X.translate(nx, ny); X.rotate(4.5 * lt); X.scale(rs * 1.1, rs * 1.1); paint([[-92, 0], [92, 0], [40, -145], [0, -205], [-40, -145]], { fill: PAL.nYellow, shade: PAL.nOrange, ink: PAL.line, sw: 2.2, curv: .35 }); X.restore(); }
-    shoggoth(bx, by, S, { reach: .4 + .6 * gt, wiggle: 2.5 + 2 * pulse(t, 5), eyesN: 7, t: ta, maskR: .46, mood: { eyes: b >= 4 && frac(b) < .45 ? 'wink' : 'happy', mouth: 'grin', look: [-.6, -.4] }, look: [-.6, -.5], seed: 2 });
+    if (S > 2) shoggoth(cur.x, cur.y, S, { ...cur.o, eyesN: 7, maskR: .46, mood: { eyes: b >= 4 && frac(b) < .45 ? 'wink' : 'happy', mouth: 'grin', look: [-.6, -.4] }, look: [-.6, -.5] });
     lander(RXu, RGu, rs, { noNose: true });
-    // two tentacles hug the rocket (in front)
-    if (S > 4) for (const sd of [-1, 1]) tentacle(bx + sd * S * .45, by + S * .72, Math.PI / 2 + sd * .3, S * .95 * clamp(g), S * .12, ta, 70 + sd, { curl: .9, amp: .2, rim: MOD.rimN });
-    glow(RXu, top, 260 * clamp(g + .3), PAL.nMagenta, .35 * hitAt(lt, .02, 1.2) + .15);
-    // panels fired at the sun on b340–343 (three per throw), then a thickening stream
+    glow(RXu, top, 260 * clamp(S / 330 + .3), PAL.nMagenta, .35 * hitAt(lt, .02, 1.2) + .15);
+    // panels flung off its limb tips at the sun on b340–343 (three per throw), then a thickening stream
     const shots = [];
     for (let m = 4; m < 8; m++) for (let p = 0; p < 3; p++) shots.push([m + p * .07, m % 2, p]);
     for (let m = 6; m < 8; m += .25) shots.push([m + .12, (m * 4) % 2, 3]);
     for (const [bm, j, p] of shots) {
       const u = (b - bm) / 2; if (u <= 0 || u >= 1) continue;
-      const aim = aimOf(j), x0 = tb(j)[0] + Math.cos(aim) * S * 1.7, y0 = tb(j)[1] + Math.sin(aim) * S * 1.7;
+      const tl = bt(336 + bm), sh = shog(tl), [x0, y0] = limbTip(sh.x, sh.y, sh.S, sh.o, TIPS[j][0], TIPS[j][1]);
       const pos = uu2 => { const e = 1 - Math.pow(1 - uu2, 1.6); return [lerp(x0, U_SUN[0], e) + Math.sin(uu2 * Math.PI) * (p - 1) * 90, lerp(y0, U_SUN[1], e) - Math.sin(uu2 * Math.PI) * (60 + p * 50)]; };
       const [px, py] = pos(u), sz = lerp(120, 22, u), fl = Math.cos(u * 12 + p * 2 + bm);
       const tr = []; for (let q = 0; q <= 6; q++) tr.push(pos(Math.max(0, u - .12 + q * .02)));
@@ -324,6 +336,8 @@
       pnl(px, py, sz, sz * .62, u * 5 + p, { flip: fl, glint: Math.pow(Math.max(0, fl), 10) });
       if (u > .9) glow(U_SUN[0], U_SUN[1], 90, '#FFFFFF', .7 * (u - .9) * 10);
     }
+    // a little flash at each tip as it lets go
+    for (let m = 4; m < 8; m++) { const k = hitAt(b, m, 7); if (k < .05) continue; const [tx, ty] = limbTip(cur.x, cur.y, S, cur.o, TIPS[m % 2][0], TIPS[m % 2][1]); glow(tx, ty, 120, PAL.nCyan, .6 * k); paint(starPts(tx, ty, 40 * k, .3, 4, .3), { fill: '#FFFFFF', ink: null }); }
     camEnd();
     // him, in the foreground, looking up at it (cheering each throw from b340)
     const cheer = b >= 4, hop = cheer ? par(clamp(frac(b) / .85), 40) : 0;
@@ -353,12 +367,16 @@
       X.fillStyle = 'rgba(3,1,10,.5)';
       for (const x of xs) { const Ls = h * 2.2 * clamp(k); X.beginPath(); X.moveTo(x + w, baseY - w * .05); X.lineTo(x + w + Ls, baseY - w * .1); X.lineTo(x + w + Ls, baseY + w * .03); X.lineTo(x, baseY + w * .06); X.closePath(); X.fill(); }
       X.save(); X.beginPath(); X.rect(-3000, -3000, 8000, baseY + 3000); X.clip();
-      for (const x of xs) pod(x, baseY + h * (1 - k), w, h, { on: up(lt, at + .1, .2), seed: Math.round(x) * .37 + d, t });
+      for (const x of xs) { if (x > W + 60 || x + w < -60) continue; pod(x, baseY + h * (1 - k), w, h, { on: up(lt, at + .1, .2), seed: Math.round(x) * .37 + d, t, genius: d < 3.5 ? 1 : 0 }); }
       X.restore();
       if (d < 5) for (const x of xs) plume(x + w / 2, baseY, lt - at, { s: 1 / d, n: 5, life: .7, alpha: .7, seed: x });
       if (d < 3) { const tau = lt - at; if (tau > 0 && tau < .3) neonLine([[-100, baseY + 4], [W + 100, baseY + 4]], G.gold, 3, 1 - tau / .3, 0); }
     }
     camEnd();
+    // the caption: one line per beat, over the racks rising
+    const c1 = since(t, 344), c2 = since(t, 345);
+    cap('A COUNTRY OF GENIUSES', 960, 318, 112, '#FFFFFF', { font: 'Anton', stroke: '#000', sw: 13, pop: clamp(c1 * 6), rot: -.03, glow: PAL.nCyan });
+    if (c2 >= 0) cap('IN A DATACENTER', 960, 440, 112, PAL.nYellow, { font: 'Anton', stroke: '#000', sw: 13, pop: clamp(c2 * 6), rot: -.03 });
   }
 
   // ======================================================================================
@@ -419,7 +437,15 @@
     // the rocket, far, and the shoggoth conducting: tentacles jab on every snap
     lander(260, 900, .32, { noNose: true });
     const sx = 1560, sy = 820, S = 160;
-    shoggoth(sx, sy, S, { reach: 1, wiggle: 3 + 3 * pulse(t, 6), eyesN: 7, t: ta, maskR: .46, mood: { eyes: 'happy', mouth: 'open', look: [-.6, -.8] }, look: [-.6, -.8], seed: 4 });
+    const so = { reach: 1, wiggle: 3 + 3 * pulse(t, 6), t: ta, seed: 4 };
+    shoggoth(sx, sy, S, { ...so, eyesN: 7, maskR: .46, mood: { eyes: 'happy', mouth: 'open', look: [-.6, -.8] }, look: [-.6, -.8] });
+    // conducting: its big arm's tip sparks and zaps each ring's weld as it snaps on
+    for (let i = 0; i < 4; i++) {
+      const k = hitAt(lt, i * BT, 6); if (k < .04) continue;
+      const [tx, ty] = limbTip(sx, sy, S, so, 0, [175, 32]), [wx, wy] = ringPt(SPH[0], SPH[1], SPH[2], i, SW0[i], .02 * lt);
+      neonLine([[tx, ty], [lerp(tx, wx, .5) + 40, lerp(ty, wy, .5) - 30], [wx, wy]], PAL.nCyan, 3, .7 * k, .5);
+      glow(tx, ty, 130, PAL.nCyan, .7 * k); paint(starPts(tx, ty, 46 * k + 6, .3, 4, .3), { fill: '#FFFFFF', ink: null, alpha: clamp(k * 1.5) });
+    }
     camEnd();
   }
 
@@ -528,7 +554,7 @@
     const R = 330 * (.85 + .15 * s0);
     mask(960, 500, R, { eyes: 'star', mouth: lt > BT ? 'open' : 'smile', rot, look: [-.2, -.4], glow: .9, blush: 1 });
     // tiny lattice glints in each star eye
-    for (const sd of [-1, 1]) { const ex = 960 + Math.cos(rot) * (sd * R * .34 - .2 * R * .12) - Math.sin(rot) * (-R * .18 - .4 * R * .1), ey = 500 + Math.sin(rot) * (sd * R * .34) + Math.cos(rot) * (-R * .18 - .4 * R * .1); dysonEmblem(ex, ey, R * .085, .2); }
+    for (const [px, py] of [[-.4, -.3], [.33, -.32]]) { const lx = (px - .2 * .12) * R, ly = (py - .4 * .1) * R, ex = 960 + Math.cos(rot) * lx - Math.sin(rot) * ly, ey = 500 + Math.sin(rot) * lx + Math.cos(rot) * ly; dysonEmblem(ex, ey, R * .075, .2); }
     for (let i = 0; i < 7; i++) { const at = (i % 2) * BT + hash(i) * .25, k2 = up(lt, at, .25); if (k2 <= 0 || k2 >= 1) continue; const a = hash(i * 3) * TAU, d = R * (1.1 + .4 * hash(i * 5)); paint(starPts(960 + Math.cos(a) * d, 500 + Math.sin(a) * d * .8, 40 * Math.sin(k2 * Math.PI), .25, 4), { fill: i % 2 ? PAL.nYellow : '#FFFFFF', ink: null }); }
     camEnd();
   }
@@ -646,8 +672,10 @@
     for (let i = 0; i <= 16; i++) { const u = i / 16; sp.push([lerp(2200, tx + 50, u) + Math.sin(u * 5 + t * 3) * 30 * (1 - u), lerp(820, 555, Math.pow(u, .7)) + Math.sin(u * 7 + t * 4) * 20 * (1 - u)]); }
     paint(ribbon(sp, u => lerp(150, 70, u)), { fill: MOD.bodyN, shade: MOD.bodyNDk, rim: MOD.rimN, ink: PAL.line, sw: 4, curv: .5, light: [0, -.25] });
     neonLine(sp.slice(1, -1).map(([x, y], i) => [x, y - lerp(150, 70, i / 16) * .6]), MOD.rimN, 4, .8, .5);
-    for (let i = 2; i < 15; i += 2) { const [qx, qy] = sp[i], ww = lerp(150, 70, i / 16) * .35; paint(ellPts(qx, qy + ww, ww * .5, ww * .35, 10), { fill: '#3A1E5E', ink: null }); }
+    // his design: little half-lidded eyes along the limb instead of suckers (they all look at the bump)
+    for (const i of [3, 7, 11]) { const [qx, qy] = sp[i], ww = lerp(150, 70, i / 16) * .42; eyeball(qx, qy + ww * .35, ww, { lid: .55 + .3 * hitAt(lt, 0, 6), tilt: Math.atan2(sp[i + 1][1] - qy, sp[i + 1][0] - qx), look: [-1, -.2], sw: 3 }); }
     paint(ellPts(tx + 40, 552, 92, 88, 22), { fill: MOD.bodyN, shade: MOD.bodyNDk, rim: MOD.rimN, ink: PAL.line, sw: 4 });
+    line([[tx - 10, 520], [tx + 20, 545]], 3, PAL.line, .3); line([[tx - 12, 575], [tx + 18, 572]], 3, PAL.line, .3);
     // impact
     const k = hitAt(lt, 0, 7);
     if (k > .05) { paint(starPts(cxp, 550, 60 + 200 * (1 - k), .35, 8, .3), { fill: PAL.nYellow, ink: PAL.line, sw: 3, alpha: k }); glow(cxp, 550, 260, '#FFFFFF', .6 * k); }
@@ -805,4 +833,6 @@
   ]);
   // the postcard: the finished lattice over the moon base, the model conducting
   POSTCARDS.dyson = t => assemblyWide(t, 3 * BT + .6 + .1 * Math.sin(t), 4 * BT);
+  // the shared Dyson-lattice look (matches the jacket emblem) for other chapters: SHARED.lattice(x, y, r, o)
+  SHARED.lattice = lattice;
 })();
