@@ -1,3 +1,7 @@
+Note From Ryan: Thanks for checking out the repo! 
+
+I saw some amazing videos being put together by Claude Opus 5.5 and wanted to get in on the action. This repo is a reproducible way to check out what Claude & I made. I hope you enjoy it!
+------------------------------------------------------------------------------------------------------------------------------------------------
 # music_vid_moon
 
 Procedurally animated, beat-synced music videos where every frame is painted in code. The first is **Take Me (To the Moon)** by Ian Asher & D A N N Y: a Singularity × Edgerunners-style edit about an evals researcher, his model and a shoggoth. It was made in two versions. The repo also holds the character-design study for the next one, **I Really Want to Stay at Your House**.
