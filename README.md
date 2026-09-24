@@ -1,6 +1,6 @@
 **Note From Ryan: Thanks for checking out the repo! 
 
-I saw some amazing videos being put together by Claude Opus 5.5 and wanted to get in on the action. This repo is a reproducible way to check out what Claude & I made. I hope you enjoy it! **
+I saw some amazing videos being put together by Claude Opus 5.5 and wanted to get in on the action. This repo is a reproducible way to check out what Claude & I made. I hope you enjoy it!**
 
 ------------------------------------------------------------------------------------------------------------------------------------------------
 # music_vid_moon
